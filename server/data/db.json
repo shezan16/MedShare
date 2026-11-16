@@ -1,0 +1,349 @@
+{
+  "users": [
+    {
+      "id": "usr-admin-1",
+      "email": "admin@medshare.org",
+      "passwordHash": "b9f77e4de88c74e05d1a237a3a7d2c46ff88b8ebe3dc168da49c5b0dd2d67b2f",
+      "role": "ADMIN",
+      "isVerified": true,
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "usr-patient-1",
+      "email": "patient@medshare.org",
+      "passwordHash": "b9f77e4de88c74e05d1a237a3a7d2c46ff88b8ebe3dc168da49c5b0dd2d67b2f",
+      "role": "PATIENT",
+      "isVerified": true,
+      "createdAt": "2024-01-02T00:00:00.000Z"
+    },
+    {
+      "id": "usr-donor-1",
+      "email": "donor@medshare.org",
+      "passwordHash": "b9f77e4de88c74e05d1a237a3a7d2c46ff88b8ebe3dc168da49c5b0dd2d67b2f",
+      "role": "DONOR",
+      "isVerified": true,
+      "createdAt": "2024-01-03T00:00:00.000Z"
+    },
+    {
+      "id": "usr-donor-2",
+      "email": "sarah.connor@medshare.org",
+      "passwordHash": "b9f77e4de88c74e05d1a237a3a7d2c46ff88b8ebe3dc168da49c5b0dd2d67b2f",
+      "role": "DONOR",
+      "isVerified": true,
+      "createdAt": "2024-01-04T00:00:00.000Z"
+    },
+    {
+      "id": "usr-donor-3",
+      "email": "david.kim@medshare.org",
+      "passwordHash": "b9f77e4de88c74e05d1a237a3a7d2c46ff88b8ebe3dc168da49c5b0dd2d67b2f",
+      "role": "DONOR",
+      "isVerified": true,
+      "createdAt": "2024-01-05T00:00:00.000Z"
+    },
+    {
+      "id": "usr-ph-1",
+      "email": "pharmacy@medshare.org",
+      "passwordHash": "b9f77e4de88c74e05d1a237a3a7d2c46ff88b8ebe3dc168da49c5b0dd2d67b2f",
+      "role": "PHARMACY",
+      "isVerified": true,
+      "createdAt": "2024-01-06T00:00:00.000Z"
+    },
+    {
+      "id": "usr-ph-2",
+      "email": "apex.rx@medshare.org",
+      "passwordHash": "b9f77e4de88c74e05d1a237a3a7d2c46ff88b8ebe3dc168da49c5b0dd2d67b2f",
+      "role": "PHARMACY",
+      "isVerified": true,
+      "createdAt": "2024-01-07T00:00:00.000Z"
+    }
+  ],
+  "donors": [
+    {
+      "id": "dnr-1",
+      "userId": "usr-donor-1",
+      "fullName": "Alex Vance",
+      "phone": "+1 (555) 234-5678",
+      "bloodGroup": "O_NEG",
+      "latitude": 40.7522,
+      "longitude": -73.9765,
+      "isAvailable": true,
+      "verificationStatus": "VERIFIED",
+      "lastDonationDate": "2024-05-10T00:00:00.000Z",
+      "donationCount": 6,
+      "responseRate": 98,
+      "preferredRadiusKm": 10
+    },
+    {
+      "id": "dnr-2",
+      "userId": "usr-donor-2",
+      "fullName": "Sarah Connor",
+      "bloodGroup": "A_POS",
+      "phone": "+1 (555) 345-6789",
+      "latitude": 40.7484,
+      "longitude": -73.9857,
+      "isAvailable": true,
+      "verificationStatus": "VERIFIED",
+      "lastDonationDate": "2024-03-15T00:00:00.000Z",
+      "donationCount": 4,
+      "responseRate": 95,
+      "preferredRadiusKm": 5
+    },
+    {
+      "id": "dnr-3",
+      "userId": "usr-donor-3",
+      "fullName": "David Kim",
+      "bloodGroup": "B_POS",
+      "phone": "+1 (555) 456-7890",
+      "latitude": 40.7589,
+      "longitude": -73.9851,
+      "isAvailable": true,
+      "verificationStatus": "VERIFIED",
+      "lastDonationDate": "2024-01-20T00:00:00.000Z",
+      "donationCount": 8,
+      "responseRate": 92,
+      "preferredRadiusKm": 7
+    }
+  ],
+  "hospitals": [
+    {
+      "id": "hsp-1",
+      "name": "Metropolitan Trauma & Surgical Center",
+      "address": "450 Lexington Ave, New York, NY 10017",
+      "latitude": 40.7516,
+      "longitude": -73.9754,
+      "phone": "+1 (212) 555-0199",
+      "email": "emergency@metrotrauma.org",
+      "isVerified": true
+    },
+    {
+      "id": "hsp-2",
+      "name": "St. Jude General Hospital & Blood Bank",
+      "address": "120 W 106th St, New York, NY 10025",
+      "latitude": 40.7997,
+      "longitude": -73.9678,
+      "phone": "+1 (212) 555-0144",
+      "email": "bloodbank@stjudegeneral.org",
+      "isVerified": true
+    }
+  ],
+  "bloodRequests": [
+    {
+      "id": "br-1049",
+      "requestNumber": "BR-2026-1049",
+      "requesterId": "usr-patient-1",
+      "patientName": "Robert Martinez",
+      "bloodGroup": "O_NEG",
+      "unitsRequired": 2,
+      "hospitalName": "Metropolitan Trauma & Surgical Center",
+      "hospitalAddress": "450 Lexington Ave, New York, NY 10017",
+      "hospitalLat": 40.7516,
+      "hospitalLng": -73.9754,
+      "requiredDate": "2026-11-20T00:00:00.000Z",
+      "priority": "CRITICAL",
+      "contactPerson": "Dr. Katherine Evans",
+      "contactPhone": "+1 (212) 555-9011",
+      "additionalNotes": "Emergency thoracic surgery required after MVC trauma.",
+      "status": "SEARCHING",
+      "createdAt": "2026-11-16T15:39:54.950Z",
+      "updatedAt": "2026-11-16T15:39:54.952Z"
+    },
+    {
+      "id": "br-1048",
+      "requestNumber": "BR-2026-1048",
+      "requesterId": "usr-patient-1",
+      "patientName": "Emma Wilson",
+      "bloodGroup": "A_POS",
+      "unitsRequired": 1,
+      "hospitalName": "St. Jude General Hospital & Blood Bank",
+      "hospitalAddress": "120 W 106th St, New York, NY 10025",
+      "hospitalLat": 40.7997,
+      "hospitalLng": -73.9678,
+      "requiredDate": "2026-11-21T00:00:00.000Z",
+      "priority": "HIGH",
+      "contactPerson": "Nurse Jenkins",
+      "contactPhone": "+1 (212) 555-8822",
+      "additionalNotes": "Scheduled transfusion for oncology patient.",
+      "status": "DONOR_ACCEPTED",
+      "createdAt": "2026-11-16T14:39:54.952Z",
+      "updatedAt": "2026-11-16T15:39:54.952Z"
+    }
+  ],
+  "donorResponses": [
+    {
+      "id": "rsp-1",
+      "bloodRequestId": "br-1048",
+      "donorId": "dnr-2",
+      "status": "ACCEPTED",
+      "notes": "Donor confirmed arrival at hospital triage.",
+      "createdAt": "2026-11-16T15:39:54.952Z"
+    }
+  ],
+  "pharmacies": [
+    {
+      "id": "ph-1",
+      "userId": "usr-ph-1",
+      "organizationName": "HealthCare Plus Community Pharmacy",
+      "licenseNumber": "NY-PHARM-882194",
+      "address": "550 5th Ave, New York, NY 10036",
+      "latitude": 40.7559,
+      "longitude": -73.9792,
+      "phone": "+1 (212) 555-0321",
+      "email": "pharmacy@medshare.org",
+      "isVerified": true,
+      "verificationStatus": "VERIFIED"
+    },
+    {
+      "id": "ph-2",
+      "userId": "usr-ph-2",
+      "organizationName": "Apex Care Institutional Pharmacy",
+      "licenseNumber": "NY-PHARM-991042",
+      "address": "320 W 42nd St, New York, NY 10036",
+      "latitude": 40.7584,
+      "longitude": -73.9912,
+      "phone": "+1 (212) 555-0765",
+      "email": "apex.rx@medshare.org",
+      "isVerified": true,
+      "verificationStatus": "VERIFIED"
+    }
+  ],
+  "medicines": [
+    {
+      "id": "med-1",
+      "pharmacyId": "ph-1",
+      "name": "Amoxicillin Trihydrate BP 500mg",
+      "genericName": "Amoxicillin",
+      "brandName": "Amoxil",
+      "strength": "500 mg",
+      "dosageForm": "Capsule",
+      "manufacturer": "Sandoz Pharmaceuticals",
+      "batchNumber": "AX2024-884B",
+      "mfgDate": "2025-03-01",
+      "expiryDate": "2027-08-01",
+      "quantity": 120,
+      "packagingCondition": "BLISTER_PACK",
+      "storageCondition": "ROOM_TEMPERATURE",
+      "requiresPrescription": true,
+      "requiresColdChain": false,
+      "source": "PHARMACY_STOCK",
+      "verificationStatus": "VERIFIED",
+      "safetyNotes": "Packaging intact and verified by licensed pharmacist."
+    },
+    {
+      "id": "med-2",
+      "pharmacyId": "ph-1",
+      "name": "Metformin Hydrochloride 500mg XR",
+      "genericName": "Metformin HCl",
+      "brandName": "Glucophage XR",
+      "strength": "500 mg",
+      "dosageForm": "Tablet",
+      "manufacturer": "Merck S.A.",
+      "batchNumber": "MET-4109",
+      "mfgDate": "2025-11-15",
+      "expiryDate": "2027-11-15",
+      "quantity": 250,
+      "packagingCondition": "BLISTER_PACK",
+      "storageCondition": "ROOM_TEMPERATURE",
+      "requiresPrescription": true,
+      "requiresColdChain": false,
+      "source": "DONATED_SURPLUS",
+      "verificationStatus": "VERIFIED",
+      "safetyNotes": "Factory sealed blister pack, verified temperature history."
+    },
+    {
+      "id": "med-3",
+      "pharmacyId": "ph-1",
+      "name": "Paracetamol IP 650mg Tablets",
+      "genericName": "Paracetamol",
+      "brandName": "Calpol",
+      "strength": "650 mg",
+      "dosageForm": "Tablet",
+      "manufacturer": "GlaxoSmithKline",
+      "batchNumber": "GSK-9921",
+      "mfgDate": "2024-05-01",
+      "expiryDate": "2027-05-01",
+      "quantity": 500,
+      "packagingCondition": "INTACT_SEALED",
+      "storageCondition": "ROOM_TEMPERATURE",
+      "requiresPrescription": false,
+      "requiresColdChain": false,
+      "source": "PHARMACY_STOCK",
+      "verificationStatus": "VERIFIED",
+      "safetyNotes": "OTC antipyretic. Sealed box verified."
+    },
+    {
+      "id": "med-4",
+      "pharmacyId": "ph-1",
+      "name": "Human Insulin Regular 100 IU/ml",
+      "genericName": "Human Regular Insulin",
+      "brandName": "Humulin R",
+      "strength": "100 IU/ml",
+      "dosageForm": "Vial",
+      "manufacturer": "Eli Lilly & Company",
+      "batchNumber": "EL-90214",
+      "mfgDate": "2026-06-15",
+      "expiryDate": "2027-12-15",
+      "quantity": 30,
+      "packagingCondition": "INTACT_SEALED",
+      "storageCondition": "REFRIGERATED_2_8C",
+      "requiresPrescription": true,
+      "requiresColdChain": true,
+      "source": "HOSPITAL_SURPLUS",
+      "verificationStatus": "VERIFIED",
+      "safetyNotes": "Strict cold-chain monitored (2C-8C data logger attached)."
+    }
+  ],
+  "medicineRequests": [
+    {
+      "id": "mr-1",
+      "requesterId": "usr-patient-1",
+      "medicineId": "med-2",
+      "quantityRequested": 20,
+      "prescriptionUrl": "https://storage.medshare.org/prescriptions/sample-rx-verified.pdf",
+      "reason": "Chronic hypertensive patient assistance program support.",
+      "status": "PENDING",
+      "createdAt": "2026-11-16T15:39:54.952Z"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "notif-1",
+      "userId": "usr-donor-1",
+      "title": "URGENT: O- Blood Needed Near You",
+      "message": "Critical emergency at Metropolitan Trauma Center for Robert Martinez (0.15 km away).",
+      "type": "EMERGENCY_BLOOD",
+      "isRead": false,
+      "createdAt": "2026-11-16T15:39:54.952Z"
+    },
+    {
+      "id": "notif-2",
+      "userId": "usr-patient-1",
+      "title": "Donor Matched & Dispatched",
+      "message": "Sarah Connor (A+) accepted request BR-2026-1048 and is en route.",
+      "type": "DONOR_ACCEPT",
+      "isRead": false,
+      "createdAt": "2026-11-16T15:39:54.952Z"
+    }
+  ],
+  "auditLogs": [
+    {
+      "id": "log-1",
+      "userId": "usr-patient-1",
+      "action": "CREATE_BLOOD_REQUEST",
+      "entity": "BloodRequest",
+      "entityId": "br-1049",
+      "details": "{\"requestNumber\":\"BR-2026-1049\",\"bloodGroup\":\"O_NEG\",\"priority\":\"CRITICAL\"}",
+      "createdAt": "2026-11-16T15:39:54.952Z"
+    }
+  ],
+  "reports": [
+    {
+      "id": "rep-1",
+      "reporterId": "usr-patient-1",
+      "itemType": "MEDICINE",
+      "reason": "Suspicious medicine pricing claim",
+      "details": "Reported individual attempting to demand direct payment for surplus donation.",
+      "status": "PENDING",
+      "createdAt": "2026-11-16T15:39:54.952Z"
+    }
+  ]
+}
