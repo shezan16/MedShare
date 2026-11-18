@@ -4,6 +4,7 @@ import io
 import math
 import base64
 import hashlib
+import difflib
 from datetime import datetime, date
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException
@@ -13,7 +14,7 @@ from pydantic import BaseModel, Field
 app = FastAPI(
     title="MedShare AI Vision & Intelligence Microservice",
     description="Production-grade AI microservice for Medicine OCR, Expiry/Batch extraction, Human-in-the-Loop verification, and Donor Matching",
-    version="1.4.0"
+    version="1.5.0"
 )
 
 app.add_middleware(
@@ -144,7 +145,8 @@ class ChatResponse(BaseModel):
 # ----------------- Known Medicines Reference Catalog -----------------
 KNOWN_MEDICINES = [
     {
-        "pattern": r"(mycocure|terbinafine|মাইকোকিউর|টারবিনাফিন|xfin|terbex|lamisil)",
+        "keywords": ["mycocure", "terbinafine", "xfin", "terbex", "lamisil"],
+        "pattern": r"(mycocure|mycocute|terbinafine|মাইকোকিউর|টারবিনাফিন|xfin|terbex|lamisil)",
         "name": "Mycocure 250 mg",
         "generic": "Terbinafine Hydrochloride",
         "brand": "Mycocure",
@@ -154,6 +156,7 @@ KNOWN_MEDICINES = [
         "coldChain": False
     },
     {
+        "keywords": ["napa", "ace", "paracetamol", "panadol", "calpol", "acetaminophen", "renova"],
         "pattern": r"\b(napa|ace|paracetamol|panadol|calpol|acetaminophen|tylenol|fast|renova|নাপা|প্যারাসিটামল)\b",
         "name": "Paracetamol",
         "generic": "Paracetamol",
@@ -164,6 +167,7 @@ KNOWN_MEDICINES = [
         "coldChain": False
     },
     {
+        "keywords": ["seclo", "sergel", "maxpro", "losectil", "omeprazole", "esomeprazole", "pantonix", "finix", "pantoprazole"],
         "pattern": r"\b(seclo|sergel|maxpro|losectil|omeprazole|esomeprazole|pantonix|finix|pantoprazole|rabeprazole|সেকলো|সারজেল)\b",
         "name": "Omeprazole / Esomeprazole",
         "generic": "Omeprazole / Esomeprazole",
@@ -174,6 +178,7 @@ KNOWN_MEDICINES = [
         "coldChain": False
     },
     {
+        "keywords": ["amoxicillin", "amoxil", "augmentin", "moxacil", "fimoxyl"],
         "pattern": r"\b(amox|amoxicillin|amoxil|augmentin|moxacil|fimoxyl)\b",
         "name": "Amoxicillin Trihydrate",
         "generic": "Amoxicillin",
@@ -184,6 +189,7 @@ KNOWN_MEDICINES = [
         "coldChain": False
     },
     {
+        "keywords": ["azithromycin", "zithromax", "zimax", "azicin", "tridosil"],
         "pattern": r"\b(azithro|azithromycin|zithromax|zimax|azicin|tridosil)\b",
         "name": "Azithromycin",
         "generic": "Azithromycin",
@@ -194,6 +200,7 @@ KNOWN_MEDICINES = [
         "coldChain": False
     },
     {
+        "keywords": ["cefixime", "suprax", "orcef", "cef3"],
         "pattern": r"\b(cefixime|suprax|cef-3|cef3|orcef|t-cef)\b",
         "name": "Cefixime Trihydrate",
         "generic": "Cefixime",
@@ -204,6 +211,7 @@ KNOWN_MEDICINES = [
         "coldChain": False
     },
     {
+        "keywords": ["cefuroxime", "kilbac", "sefdin", "furotil"],
         "pattern": r"\b(cefuroxime|kilbac|sefdin|cerox-a|furotil)\b",
         "name": "Cefuroxime Axetil",
         "generic": "Cefuroxime",
@@ -214,6 +222,7 @@ KNOWN_MEDICINES = [
         "coldChain": False
     },
     {
+        "keywords": ["ciprofloxacin", "ciprocin", "neofloxin"],
         "pattern": r"\b(ciprofloxacin|ciprocin|neofloxin)\b",
         "name": "Ciprofloxacin",
         "generic": "Ciprofloxacin",
@@ -224,6 +233,7 @@ KNOWN_MEDICINES = [
         "coldChain": False
     },
     {
+        "keywords": ["metformin", "glucophage", "comet", "nobesit"],
         "pattern": r"\b(metformin|glucophage|comet|nobesit)\b",
         "name": "Metformin Hydrochloride",
         "generic": "Metformin HCl",
@@ -234,6 +244,7 @@ KNOWN_MEDICINES = [
         "coldChain": False
     },
     {
+        "keywords": ["monas", "montene", "montair", "montelukast", "lumona"],
         "pattern": r"\b(monas|montene|montair|montelukast|lumona)\b",
         "name": "Montelukast Sodium",
         "generic": "Montelukast",
@@ -244,6 +255,7 @@ KNOWN_MEDICINES = [
         "coldChain": False
     },
     {
+        "keywords": ["fexo", "fexofenadine", "telfast", "fenadin", "axodin"],
         "pattern": r"\b(fexo|fexofenadine|telfast|fenadin|axodin)\b",
         "name": "Fexofenadine Hydrochloride",
         "generic": "Fexofenadine HCl",
@@ -254,6 +266,7 @@ KNOWN_MEDICINES = [
         "coldChain": False
     },
     {
+        "keywords": ["alatrol", "cetirizine", "zirtec"],
         "pattern": r"\b(alatrol|cetirizine|zirtec)\b",
         "name": "Cetirizine Hydrochloride",
         "generic": "Cetirizine",
@@ -264,6 +277,7 @@ KNOWN_MEDICINES = [
         "coldChain": False
     },
     {
+        "keywords": ["bizoran", "amlocal", "amlodipine", "camlodin", "ocal"],
         "pattern": r"\b(bizoran|amlocal|amlodipine|camlodin|ocal)\b",
         "name": "Amlodipine",
         "generic": "Amlodipine",
@@ -274,6 +288,7 @@ KNOWN_MEDICINES = [
         "coldChain": False
     },
     {
+        "keywords": ["insulin", "humulin", "actrapid", "novorapid", "lantus", "insulatard", "maxsulin"],
         "pattern": r"\b(insulin|humulin|actrapid|novorapid|lantus|insulatard|maxsulin)\b",
         "name": "Human Insulin",
         "generic": "Insulin",
@@ -294,16 +309,31 @@ KNOWN_MANUFACTURERS = [
 
 GENERIC_SUFFIX_PATTERN = r"\b([A-Za-z]{4,}(?:cillin|mycin|floxacin|prazole|tidine|profen|paracetamol|terbinafine|conazole|lukast|fenadine|cetirizine|dipine|sartan|statin|formin|gliptin|olol|pam|zole|vir|mab|ine|ate))\b"
 
-# ----------------- Image Preprocessing & Multi-Angle OCR -----------------
+# ----------------- Fuzzy Matching & OCR Helper Functions -----------------
+
+def match_known_medicine(text: str) -> Optional[Dict[str, Any]]:
+    """Matches text against KNOWN_MEDICINES using both exact regex and 80% Fuzzy Word Matching."""
+    # 1. Fast Regex Match
+    for med in KNOWN_MEDICINES:
+        if re.search(med["pattern"], text, re.IGNORECASE):
+            return med
+
+    # 2. Fuzzy Match for OCR typos (e.g. "Mycocute" -> "Mycocure", "Terbinatine" -> "Terbinafine")
+    words = [w.lower() for w in re.findall(r"[A-Za-z]{4,}", text)]
+    for word in words:
+        for med in KNOWN_MEDICINES:
+            matches = difflib.get_close_matches(word, med["keywords"], n=1, cutoff=0.80)
+            if matches:
+                return med
+    return None
 
 def score_ocr_text(text: str) -> int:
     """Scores an OCR pass based on valid pharmaceutical terms, English words, and embossed batch codes."""
     if not text:
         return 0
     score = 0
-    for med in KNOWN_MEDICINES:
-        if re.search(med["pattern"], text, re.IGNORECASE):
-            score += 50
+    if match_known_medicine(text):
+        score += 60
     for comp in KNOWN_MANUFACTURERS:
         if re.search(rf"\b{re.escape(comp)}\b", text, re.IGNORECASE):
             score += 30
@@ -311,9 +341,6 @@ def score_ocr_text(text: str) -> int:
         score += 35
     if re.search(r"\b\d+\s*(?:mg|gm|ml|mcg|iu|মি\.?গ্রা\.?)\b", text, re.IGNORECASE):
         score += 40
-    # Reward finding blister embossed batch+expiry stamps like 26004E0528
-    if re.search(r"\b\d{4,6}[A-Za-z0-9]\d{4}\b", text):
-        score += 45
     valid_words = re.findall(r"\b[A-Za-z]{4,15}\b", text)
     score += len(valid_words) * 3
     return score
@@ -345,39 +372,57 @@ def preprocess_for_blister_and_box(gray_img):
 
 def scan_blister_margins_for_codes(gray_orig) -> List[str]:
     """
-    Specifically crops the 4 margins (top, bottom, left, right) of a blister pack,
-    rotates them upright, magnifies 2.5x, and runs alphanumeric-only OCR to catch
-    upside-down embossed/printed batch & expiry codes (e.g. 26004E0528).
+    Dedicated Morphological Black-Hat & Adaptive Threshold scanner for faint/embossed
+    blister pack margins (such as the upside-down '26004E0528' stamp at the bottom of Mycocure).
     """
     found_codes = []
     h, w = gray_orig.shape[:2]
     if h < 100 or w < 100:
         return found_codes
 
-    # Crop outer 18% margins and orient them right-side-up
-    margin_strips = [
-        gray_orig[int(h * 0.82):h, :],                                              # Bottom normal
-        cv2.rotate(gray_orig[int(h * 0.82):h, :], cv2.ROTATE_180),                  # Bottom upside-down
-        gray_orig[0:int(h * 0.18), :],                                              # Top normal
-        cv2.rotate(gray_orig[0:int(h * 0.18), :], cv2.ROTATE_180),                  # Top upside-down
-        cv2.rotate(gray_orig[:, 0:int(w * 0.18)], cv2.ROTATE_90_CLOCKWISE),         # Left margin
-        cv2.rotate(gray_orig[:, int(w * 0.82):w], cv2.ROTATE_90_COUNTERCLOCKWISE),  # Right margin
+    # Crop outer 15% margins where batch/expiry stamps are pressed
+    raw_margins = [
+        cv2.rotate(gray_orig[int(h * 0.85):h, :], cv2.ROTATE_180),                  # Bottom upside-down (most common!)
+        gray_orig[int(h * 0.85):h, :],                                              # Bottom normal
+        gray_orig[0:int(h * 0.15), :],                                              # Top normal
+        cv2.rotate(gray_orig[0:int(h * 0.15), :], cv2.ROTATE_180),                  # Top upside-down
+        cv2.rotate(gray_orig[:, 0:int(w * 0.15)], cv2.ROTATE_90_CLOCKWISE),         # Left margin
+        cv2.rotate(gray_orig[:, int(w * 0.85):w], cv2.ROTATE_90_COUNTERCLOCKWISE),  # Right margin
     ]
 
-    whitelist_cfg = "--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ/:.- "
+    # Single-line and sparse-text OCR modes with strict alphanumeric whitelist
+    configs = [
+        "--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ/:.- "
+    ]
 
-    for strip in margin_strips:
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+
+    for strip in raw_margins:
         try:
-            # Upscale 2.5x for small edge stamp numbers
-            zoom = cv2.resize(strip, None, fx=2.5, fy=2.5, interpolation=cv2.INTER_CUBIC)
-            clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-            enh = clahe.apply(zoom)
-            raw_edge = pytesseract.image_to_string(enh, lang="eng", config=whitelist_cfg).strip()
-            # Look for compact batch/expiry strings or date patterns
-            matches = re.findall(r"[A-Z0-9]{3,8}[\s\-/]*[A-Z0-9]{4,10}", raw_edge)
-            for m in matches:
-                if sum(c.isdigit() for c in m) >= 4:
-                    found_codes.append(m.strip())
+            # Upscale 3x so tiny embossed numbers become large and clear
+            zoom = cv2.resize(strip, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
+            zoom_blur = cv2.GaussianBlur(zoom, (3, 3), 0)
+
+            # Filter 1: High-contrast CLAHE + Otsu Threshold
+            clahe = cv2.createCLAHE(clipLimit=3.5, tileGridSize=(8, 8))
+            enh = clahe.apply(zoom_blur)
+            _, otsu = cv2.threshold(enh, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+            # Filter 2: Morphological Black-Hat (isolates dark/grey embossed characters from bright silver/white border)
+            blackhat = cv2.morphologyEx(enh, cv2.MORPH_BLACKHAT, kernel)
+            bh_norm = cv2.normalize(blackhat, None, 0, 255, cv2.NORM_MINMAX)
+            _, bh_thresh = cv2.threshold(bh_norm, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+            for proc_img in [enh, otsu, bh_thresh]:
+                for cfg in configs:
+                    raw_edge = pytesseract.image_to_string(proc_img, lang="eng", config=cfg).strip()
+                    compact_str = re.sub(r"\s+", "", raw_edge)
+                    # Look for alphanumeric sequences containing at least 5 characters and 3 digits
+                    candidates = re.findall(r"[A-Z0-9]{6,14}", compact_str)
+                    for cand in candidates:
+                        if sum(c.isdigit() for c in cand) >= 4:
+                            found_codes.append(cand)
         except Exception:
             continue
 
@@ -385,8 +430,9 @@ def scan_blister_margins_for_codes(gray_orig) -> List[str]:
 
 def extract_text_from_base64(image_base64: str) -> str:
     """
-    Decodes base64 image, scans across all 4 rotations (0°, 90°, 180°, 270°),
-    and performs dedicated edge-margin scanning for blister batch/expiry stamps.
+    Smart orientation & margin scanner:
+    Prioritizes rotation angles based on image aspect ratio for faster execution,
+    and runs morphological margin scanning for embossed batch/expiry stamps.
     """
     if not PYTESSERACT_AVAILABLE:
         return ""
@@ -402,14 +448,21 @@ def extract_text_from_base64(image_base64: str) -> str:
                 return ""
 
             gray_orig = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            h, w = gray_orig.shape[:2]
 
-            # Test all 4 orientations so upside-down or vertical text is always read
-            rotations = [
-                ("0_deg", gray_orig),
-                ("90_cw", cv2.rotate(gray_orig, cv2.ROTATE_90_CLOCKWISE)),
-                ("90_ccw", cv2.rotate(gray_orig, cv2.ROTATE_90_COUNTERCLOCKWISE)),
-                ("180_deg", cv2.rotate(gray_orig, cv2.ROTATE_180)),
-            ]
+            # If portrait (taller than wide, like shezan.jpg), test 90° rotations first!
+            if h > w * 1.15:
+                rotations = [
+                    ("90_cw", cv2.rotate(gray_orig, cv2.ROTATE_90_CLOCKWISE)),
+                    ("90_ccw", cv2.rotate(gray_orig, cv2.ROTATE_90_COUNTERCLOCKWISE)),
+                    ("0_deg", gray_orig),
+                ]
+            else:
+                rotations = [
+                    ("0_deg", gray_orig),
+                    ("90_cw", cv2.rotate(gray_orig, cv2.ROTATE_90_CLOCKWISE)),
+                    ("90_ccw", cv2.rotate(gray_orig, cv2.ROTATE_90_COUNTERCLOCKWISE)),
+                ]
 
             best_text = ""
             best_score = -1
@@ -425,13 +478,16 @@ def extract_text_from_base64(image_base64: str) -> str:
                     best_score = sc
                     best_text = cleaned
 
-                if sc >= 30:
+                if sc >= 35:
                     all_good_lines.extend(cleaned.splitlines())
+                # Early exit optimization: if we already found a high-confidence medicine match, skip remaining full-image rotations!
+                if sc >= 110:
+                    break
 
-            # Also scan outer margins specifically for upside-down embossed batch/expiry stamps
+            # Run morphological margin scanner for upside-down embossed batch/expiry stamps
             edge_codes = scan_blister_margins_for_codes(gray_orig)
             if edge_codes:
-                all_good_lines.extend(edge_codes)
+                all_good_lines.append("STAMP_CODES: " + " ".join(edge_codes))
 
             if all_good_lines:
                 unique_lines = list(dict.fromkeys(all_good_lines))
@@ -444,7 +500,7 @@ def extract_text_from_base64(image_base64: str) -> str:
             gray = ImageOps.grayscale(image)
             best_text = ""
             best_score = -1
-            for angle in [0, 90, 180, 270]:
+            for angle in [0, 90, 270]:
                 rot = gray.rotate(angle, expand=True)
                 raw = pytesseract.image_to_string(rot, lang=AVAILABLE_LANGS, config="--oem 3 --psm 6")
                 cleaned = clean_ocr_noise(raw)
@@ -498,33 +554,65 @@ def normalize_date_string(raw_date: str) -> Optional[str]:
         pass
     return None
 
+def fix_ocr_digits(s: str) -> str:
+    """Corrects common OCR letter-for-digit confusions inside numeric batch/date segments."""
+    trans = str.maketrans({
+        "O": "0", "o": "0", "Q": "0", "D": "0",
+        "I": "1", "l": "1", "i": "1",
+        "Z": "2", "z": "2",
+        "S": "5", "s": "5",
+        "G": "6", "b": "6",
+        "B": "8"
+    })
+    return s.translate(trans)
+
 def parse_compact_blister_stamp(text: str) -> Dict[str, Optional[str]]:
     """
-    Decodes compact Bangladeshi blister strip edge stamps such as '26004E0528' or '26004 E 0528'
-    where:
-      - '26004' -> Batch Number (first 2 digits '26' indicate Mfg Year 2026)
-      - 'E' or 'EXP' -> Expiry separator (sometimes misread by OCR as 8, B, F, or 3)
-      - '0528' -> Expiry MMYY (05/2028 -> 2028-05-01)
+    Decodes compact Bangladeshi blister strip edge stamps such as '26004E0528'
+    even if OCR misreads '0' as 'O', '5' as 'S', or 'E' as '8'/'B'/'F'/'3'.
     """
     result = {"batch": None, "mfg": None, "exp": None}
 
-    # Pattern 1: <4-6 digit batch> <E/EXP/B/F> <MMYY> (e.g., 26004E0528, 25112E1227)
-    compact_matches = re.finditer(r"\b(\d{4,6})\s*(?:EXP|E|B|F|8)\s*(0[1-9]|1[0-2])(2[5-9]|3[0-5])\b", text, re.IGNORECASE)
-    for m in compact_matches:
-        b_code, exp_m, exp_y = m.group(1), int(m.group(2)), int(m.group(3))
-        result["batch"] = b_code
-        result["exp"] = f"20{exp_y}-{exp_m:02d}-01"
-        # Infer manufacturing year if batch starts with valid year prefix (e.g. 24, 25, 26)
-        yr_prefix = int(b_code[:2])
-        if 20 <= yr_prefix <= 27 and yr_prefix <= exp_y:
-            result["mfg"] = f"20{yr_prefix}-01-01"
-        return result
+    # Find candidate tokens of length 8 to 12 in the text
+    tokens = re.findall(r"\b[A-Za-z0-9]{8,12}\b", text.upper())
+    for tok in tokens:
+        # Check if token looks like <5-char batch> + <1-char separator E/B/F/8/3> + <4-char MMYY>
+        if len(tok) in [9, 10, 11]:
+            raw_batch = fix_ocr_digits(tok[:-5])
+            sep = tok[-5]
+            raw_mmyy = fix_ocr_digits(tok[-4:])
+
+            if raw_batch.isdigit() and raw_mmyy.isdigit() and sep in ["E", "B", "F", "8", "3", "R", "P"]:
+                exp_m = int(raw_mmyy[:2])
+                exp_y = int(raw_mmyy[2:])
+                if 1 <= exp_m <= 12 and 25 <= exp_y <= 33:
+                    result["batch"] = raw_batch
+                    result["exp"] = f"20{exp_y}-{exp_m:02d}-01"
+                    yr_prefix = int(raw_batch[:2])
+                    if 20 <= yr_prefix <= 27 and yr_prefix <= exp_y:
+                        result["mfg"] = f"20{yr_prefix}-01-01"
+                    return result
+
+    # Also check spaced pattern like "26004 E 0528"
+    spaced_matches = re.finditer(r"\b([0-9OISZB]{4,6})\s*(?:EXP|E|B|F|8)\s*([0-9OISZB]{4})\b", text, re.IGNORECASE)
+    for m in spaced_matches:
+        b_code = fix_ocr_digits(m.group(1))
+        mmyy = fix_ocr_digits(m.group(2))
+        if b_code.isdigit() and mmyy.isdigit():
+            exp_m, exp_y = int(mmyy[:2]), int(mmyy[2:])
+            if 1 <= exp_m <= 12 and 25 <= exp_y <= 33:
+                result["batch"] = b_code
+                result["exp"] = f"20{exp_y}-{exp_m:02d}-01"
+                yr_prefix = int(b_code[:2])
+                if 20 <= yr_prefix <= 27 and yr_prefix <= exp_y:
+                    result["mfg"] = f"20{yr_prefix}-01-01"
+                return result
 
     return result
 
 def parse_medicine_text(raw_text: str) -> Dict[str, Any]:
     """
-    Extracts medicine details from multi-angle OCR text and edge stamps.
+    Extracts medicine details from multi-angle OCR text and morphological edge stamps.
     Never fabricates fake fallback data when fields are unreadable.
     """
     cleaned = raw_text.strip()
@@ -555,12 +643,8 @@ def parse_medicine_text(raw_text: str) -> Dict[str, Any]:
             "daysUntilExpiry": None
         }
 
-    # 1. Match against known medicines catalog
-    matched_meta = None
-    for med in KNOWN_MEDICINES:
-        if re.search(med["pattern"], cleaned, re.IGNORECASE):
-            matched_meta = med
-            break
+    # 1. Match against known medicines catalog (Regex + Fuzzy Matching)
+    matched_meta = match_known_medicine(cleaned)
 
     # 2. Strength extraction (supports English mg/ml and Bengali মি.গ্রা.)
     strength = None
@@ -584,7 +668,6 @@ def parse_medicine_text(raw_text: str) -> Dict[str, Any]:
     if not batch_num:
         batch_patterns = [
             r"(?:batch(?:\s*no\.?)?|b\.?\s*no\.?|lot(?:\s*no\.?)?|bn|b\.?n\.?)[:\.\-\s]+([A-Za-z0-9\-/]{3,16})",
-            r"\b(\d{4,6}[A-Z]\d{3,5})\b"
         ]
         for bp in batch_patterns:
             m = re.search(bp, cleaned, re.IGNORECASE)
@@ -649,7 +732,7 @@ def parse_medicine_text(raw_text: str) -> Dict[str, Any]:
     if not name:
         for line in cleaned.splitlines():
             line_s = line.strip()
-            if re.search(r"\b(batch|b\.no|lot|exp|expiry|mfg|mfd|price|mrp|tk|bdt|store|keep|lic|dar)\b", line_s, re.IGNORECASE):
+            if line_s.startswith("STAMP_CODES:") or re.search(r"\b(batch|b\.no|lot|exp|expiry|mfg|mfd|price|mrp|tk|bdt|store|keep|lic|dar)\b", line_s, re.IGNORECASE):
                 continue
             if re.search(r"\b\d+\s*(?:mg|gm|ml|mcg)\b", line_s, re.IGNORECASE) or re.search(GENERIC_SUFFIX_PATTERN, line_s, re.IGNORECASE):
                 clean_title = re.sub(r"[^A-Za-z0-9\s\-\+\.]", " ", line_s)
@@ -738,8 +821,8 @@ def get_root():
     return {
         "service": "MedShare AI Microservice",
         "status": "online",
-        "version": "1.4.0",
-        "ocr_engine": "pytesseract" if PYTESSERACT_AVAILABLE else "unavailable",
+        "version": "1.5.0",
+        "ocr_engine": "pytesseract-morphological-fuzzy" if PYTESSERACT_AVAILABLE else "unavailable",
         "ocr_languages": AVAILABLE_LANGS,
         "opencv_available": CV2_AVAILABLE
     }
@@ -758,7 +841,7 @@ def health():
 def scan_medicine_endpoint(payload: ScanMedicineRequest):
     """
     Main OCR endpoint accepting base64 image or raw text hint.
-    Automatically rotates vertical medicine strips and scans blister margins for batch/expiry stamps.
+    Uses Morphological Black-Hat edge enhancement and fuzzy matching for high accuracy.
     """
     raw_ocr = payload.raw_ocr_hint or ""
 
