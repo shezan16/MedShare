@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 app = FastAPI(
     title="MedShare AI Vision & Intelligence Microservice",
     description="Production-grade AI microservice for Medicine OCR, Expiry/Batch extraction, Human-in-the-Loop verification, and Donor Matching",
-    version="1.3.0"
+    version="1.4.0"
 )
 
 app.add_middleware(
@@ -292,17 +292,15 @@ KNOWN_MANUFACTURERS = [
     "Novartis", "GSK", "GlaxoSmithKline", "Pfizer", "Novo Nordisk", "Sandoz", "Merck", "Lupin"
 ]
 
-# Active Pharmaceutical Ingredient (Generic) suffixes for unknown medicines
 GENERIC_SUFFIX_PATTERN = r"\b([A-Za-z]{4,}(?:cillin|mycin|floxacin|prazole|tidine|profen|paracetamol|terbinafine|conazole|lukast|fenadine|cetirizine|dipine|sartan|statin|formin|gliptin|olol|pam|zole|vir|mab|ine|ate))\b"
 
 # ----------------- Image Preprocessing & Multi-Angle OCR -----------------
 
 def score_ocr_text(text: str) -> int:
-    """Scores an OCR pass based on valid pharmaceutical terms, English words, and dosages."""
+    """Scores an OCR pass based on valid pharmaceutical terms, English words, and embossed batch codes."""
     if not text:
         return 0
     score = 0
-    # High reward for matching known medicine or generic terms
     for med in KNOWN_MEDICINES:
         if re.search(med["pattern"], text, re.IGNORECASE):
             score += 50
@@ -313,7 +311,9 @@ def score_ocr_text(text: str) -> int:
         score += 35
     if re.search(r"\b\d+\s*(?:mg|gm|ml|mcg|iu|মি\.?গ্রা\.?)\b", text, re.IGNORECASE):
         score += 40
-    # Count clean English words (4+ letters)
+    # Reward finding blister embossed batch+expiry stamps like 26004E0528
+    if re.search(r"\b\d{4,6}[A-Za-z0-9]\d{4}\b", text):
+        score += 45
     valid_words = re.findall(r"\b[A-Za-z]{4,15}\b", text)
     score += len(valid_words) * 3
     return score
@@ -325,7 +325,6 @@ def clean_ocr_noise(raw_text: str) -> str:
         line_str = line.strip()
         if len(line_str) < 3:
             continue
-        # Remove common foil-dot symbols
         line_str = re.sub(r"[§|«»©®™~_=\[\]{}<>\\]+", " ", line_str).strip()
         alnum_count = sum(c.isalnum() for c in line_str)
         if alnum_count >= 3 and (alnum_count / max(1, len(line_str))) >= 0.45:
@@ -339,16 +338,55 @@ def preprocess_for_blister_and_box(gray_img):
         scale = 900 / width
         gray_img = cv2.resize(gray_img, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
 
-    # Median & Gaussian blur suppress tiny metallic blister dots
     blurred = cv2.GaussianBlur(gray_img, (3, 3), 0)
     clahe = cv2.createCLAHE(clipLimit=2.2, tileGridSize=(8, 8))
     enhanced = clahe.apply(blurred)
     return enhanced
 
+def scan_blister_margins_for_codes(gray_orig) -> List[str]:
+    """
+    Specifically crops the 4 margins (top, bottom, left, right) of a blister pack,
+    rotates them upright, magnifies 2.5x, and runs alphanumeric-only OCR to catch
+    upside-down embossed/printed batch & expiry codes (e.g. 26004E0528).
+    """
+    found_codes = []
+    h, w = gray_orig.shape[:2]
+    if h < 100 or w < 100:
+        return found_codes
+
+    # Crop outer 18% margins and orient them right-side-up
+    margin_strips = [
+        gray_orig[int(h * 0.82):h, :],                                              # Bottom normal
+        cv2.rotate(gray_orig[int(h * 0.82):h, :], cv2.ROTATE_180),                  # Bottom upside-down
+        gray_orig[0:int(h * 0.18), :],                                              # Top normal
+        cv2.rotate(gray_orig[0:int(h * 0.18), :], cv2.ROTATE_180),                  # Top upside-down
+        cv2.rotate(gray_orig[:, 0:int(w * 0.18)], cv2.ROTATE_90_CLOCKWISE),         # Left margin
+        cv2.rotate(gray_orig[:, int(w * 0.82):w], cv2.ROTATE_90_COUNTERCLOCKWISE),  # Right margin
+    ]
+
+    whitelist_cfg = "--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ/:.- "
+
+    for strip in margin_strips:
+        try:
+            # Upscale 2.5x for small edge stamp numbers
+            zoom = cv2.resize(strip, None, fx=2.5, fy=2.5, interpolation=cv2.INTER_CUBIC)
+            clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+            enh = clahe.apply(zoom)
+            raw_edge = pytesseract.image_to_string(enh, lang="eng", config=whitelist_cfg).strip()
+            # Look for compact batch/expiry strings or date patterns
+            matches = re.findall(r"[A-Z0-9]{3,8}[\s\-/]*[A-Z0-9]{4,10}", raw_edge)
+            for m in matches:
+                if sum(c.isdigit() for c in m) >= 4:
+                    found_codes.append(m.strip())
+        except Exception:
+            continue
+
+    return list(dict.fromkeys(found_codes))
+
 def extract_text_from_base64(image_base64: str) -> str:
     """
-    Decodes base64 image and scans across multiple rotations (0°, 90°, 270°)
-    so vertical blister packs (like Mycocure) are read accurately.
+    Decodes base64 image, scans across all 4 rotations (0°, 90°, 180°, 270°),
+    and performs dedicated edge-margin scanning for blister batch/expiry stamps.
     """
     if not PYTESSERACT_AVAILABLE:
         return ""
@@ -365,11 +403,12 @@ def extract_text_from_base64(image_base64: str) -> str:
 
             gray_orig = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-            # Test 0° (Normal), 90° Clockwise, and 90° Counter-Clockwise (for vertical strips!)
+            # Test all 4 orientations so upside-down or vertical text is always read
             rotations = [
                 ("0_deg", gray_orig),
                 ("90_cw", cv2.rotate(gray_orig, cv2.ROTATE_90_CLOCKWISE)),
                 ("90_ccw", cv2.rotate(gray_orig, cv2.ROTATE_90_COUNTERCLOCKWISE)),
+                ("180_deg", cv2.rotate(gray_orig, cv2.ROTATE_180)),
             ]
 
             best_text = ""
@@ -378,7 +417,6 @@ def extract_text_from_base64(image_base64: str) -> str:
 
             for label, rot_gray in rotations:
                 processed = preprocess_for_blister_and_box(rot_gray)
-                # Run OCR with English (and Bengali if installed)
                 raw = pytesseract.image_to_string(processed, lang=AVAILABLE_LANGS, config="--oem 3 --psm 6")
                 cleaned = clean_ocr_noise(raw)
                 sc = score_ocr_text(cleaned)
@@ -387,9 +425,13 @@ def extract_text_from_base64(image_base64: str) -> str:
                     best_score = sc
                     best_text = cleaned
 
-                # If rotation produced high-confidence matches, collect its lines
                 if sc >= 30:
                     all_good_lines.extend(cleaned.splitlines())
+
+            # Also scan outer margins specifically for upside-down embossed batch/expiry stamps
+            edge_codes = scan_blister_margins_for_codes(gray_orig)
+            if edge_codes:
+                all_good_lines.extend(edge_codes)
 
             if all_good_lines:
                 unique_lines = list(dict.fromkeys(all_good_lines))
@@ -402,7 +444,7 @@ def extract_text_from_base64(image_base64: str) -> str:
             gray = ImageOps.grayscale(image)
             best_text = ""
             best_score = -1
-            for angle in [0, 90, 270]:
+            for angle in [0, 90, 180, 270]:
                 rot = gray.rotate(angle, expand=True)
                 raw = pytesseract.image_to_string(rot, lang=AVAILABLE_LANGS, config="--oem 3 --psm 6")
                 cleaned = clean_ocr_noise(raw)
@@ -456,9 +498,33 @@ def normalize_date_string(raw_date: str) -> Optional[str]:
         pass
     return None
 
+def parse_compact_blister_stamp(text: str) -> Dict[str, Optional[str]]:
+    """
+    Decodes compact Bangladeshi blister strip edge stamps such as '26004E0528' or '26004 E 0528'
+    where:
+      - '26004' -> Batch Number (first 2 digits '26' indicate Mfg Year 2026)
+      - 'E' or 'EXP' -> Expiry separator (sometimes misread by OCR as 8, B, F, or 3)
+      - '0528' -> Expiry MMYY (05/2028 -> 2028-05-01)
+    """
+    result = {"batch": None, "mfg": None, "exp": None}
+
+    # Pattern 1: <4-6 digit batch> <E/EXP/B/F> <MMYY> (e.g., 26004E0528, 25112E1227)
+    compact_matches = re.finditer(r"\b(\d{4,6})\s*(?:EXP|E|B|F|8)\s*(0[1-9]|1[0-2])(2[5-9]|3[0-5])\b", text, re.IGNORECASE)
+    for m in compact_matches:
+        b_code, exp_m, exp_y = m.group(1), int(m.group(2)), int(m.group(3))
+        result["batch"] = b_code
+        result["exp"] = f"20{exp_y}-{exp_m:02d}-01"
+        # Infer manufacturing year if batch starts with valid year prefix (e.g. 24, 25, 26)
+        yr_prefix = int(b_code[:2])
+        if 20 <= yr_prefix <= 27 and yr_prefix <= exp_y:
+            result["mfg"] = f"20{yr_prefix}-01-01"
+        return result
+
+    return result
+
 def parse_medicine_text(raw_text: str) -> Dict[str, Any]:
     """
-    Extracts medicine details from multi-angle OCR text.
+    Extracts medicine details from multi-angle OCR text and edge stamps.
     Never fabricates fake fallback data when fields are unreadable.
     """
     cleaned = raw_text.strip()
@@ -508,45 +574,51 @@ def parse_medicine_text(raw_text: str) -> Dict[str, Any]:
     elif matched_meta and matched_meta.get("defaultStrength"):
         strength = matched_meta["defaultStrength"]
 
-    # 3. Batch Number extraction (including embossed blister codes like 26004E0528)
-    batch_num = None
-    batch_patterns = [
-        r"(?:batch(?:\s*no\.?)?|b\.?\s*no\.?|lot(?:\s*no\.?)?|bn|b\.?n\.?)[:\.\-\s]+([A-Za-z0-9\-/]{3,16})",
-        r"\b(\d{4,6}[A-Z]\d{3,5})\b" # Matches blister embossed codes like 26004E0528
-    ]
-    for bp in batch_patterns:
-        m = re.search(bp, cleaned, re.IGNORECASE)
-        if m:
-            candidate = m.group(1).strip().upper()
-            if candidate not in ["DATE", "NUMBER", "EXP", "MFG", "MFD", "MRP", "PRICE"] and any(c.isdigit() for c in candidate):
-                batch_num = candidate
-                break
+    # 3. Check for Compact Blister Edge Stamp first (e.g. 26004E0528)
+    blister_stamp = parse_compact_blister_stamp(cleaned)
+    batch_num = blister_stamp["batch"]
+    expiry_date = blister_stamp["exp"]
+    mfg_date = blister_stamp["mfg"]
 
-    # 4. Expiry Date extraction
-    expiry_date = None
-    exp_patterns = [
-        r"(?:exp(?:iry)?(?:\s*date)?|use\s*before|best\s*before|exp\.?\s*dt|ed)[:\.\-\s]*([0-9]{1,2}[\/\-\.\s][0-9]{2,4}|[0-9]{4}[\/\-\.\s][0-9]{1,2}[\/\-\.\s][0-9]{1,2}|[A-Za-z]{3,9}[\s\-\.,/]+[0-9]{2,4})"
-    ]
-    for ep in exp_patterns:
-        m = re.search(ep, cleaned, re.IGNORECASE)
-        if m:
-            expiry_date = normalize_date_string(m.group(1))
-            if expiry_date:
-                break
+    # 4. Standard Batch Number extraction (if not already decoded from compact stamp)
+    if not batch_num:
+        batch_patterns = [
+            r"(?:batch(?:\s*no\.?)?|b\.?\s*no\.?|lot(?:\s*no\.?)?|bn|b\.?n\.?)[:\.\-\s]+([A-Za-z0-9\-/]{3,16})",
+            r"\b(\d{4,6}[A-Z]\d{3,5})\b"
+        ]
+        for bp in batch_patterns:
+            m = re.search(bp, cleaned, re.IGNORECASE)
+            if m:
+                candidate = m.group(1).strip().upper()
+                if candidate not in ["DATE", "NUMBER", "EXP", "MFG", "MFD", "MRP", "PRICE"] and any(c.isdigit() for c in candidate):
+                    batch_num = candidate
+                    break
 
-    # 5. Manufacturing Date extraction
-    mfg_date = None
-    mfg_patterns = [
-        r"(?:mfg(?:\s*date)?|mfd(?:\s*date)?|mfg\.?\s*dt|manuf(?:actured)?)[:\.\-\s]*([0-9]{1,2}[\/\-\.\s][0-9]{2,4}|[0-9]{4}[\/\-\.\s][0-9]{1,2}[\/\-\.\s][0-9]{1,2}|[A-Za-z]{3,9}[\s\-\.,/]+[0-9]{2,4})"
-    ]
-    for mp in mfg_patterns:
-        m = re.search(mp, cleaned, re.IGNORECASE)
-        if m:
-            mfg_date = normalize_date_string(m.group(1))
-            if mfg_date:
-                break
+    # 5. Standard Expiry Date extraction
+    if not expiry_date:
+        exp_patterns = [
+            r"(?:exp(?:iry)?(?:\s*date)?|use\s*before|best\s*before|exp\.?\s*dt|ed)[:\.\-\s]*([0-9]{1,2}[\/\-\.\s][0-9]{2,4}|[0-9]{4}[\/\-\.\s][0-9]{1,2}[\/\-\.\s][0-9]{1,2}|[A-Za-z]{3,9}[\s\-\.,/]+[0-9]{2,4})"
+        ]
+        for ep in exp_patterns:
+            m = re.search(ep, cleaned, re.IGNORECASE)
+            if m:
+                expiry_date = normalize_date_string(m.group(1))
+                if expiry_date:
+                    break
 
-    # 6. Dosage Form extraction
+    # 6. Standard Manufacturing Date extraction
+    if not mfg_date:
+        mfg_patterns = [
+            r"(?:mfg(?:\s*date)?|mfd(?:\s*date)?|mfg\.?\s*dt|manuf(?:actured)?)[:\.\-\s]*([0-9]{1,2}[\/\-\.\s][0-9]{2,4}|[0-9]{4}[\/\-\.\s][0-9]{1,2}[\/\-\.\s][0-9]{1,2}|[A-Za-z]{3,9}[\s\-\.,/]+[0-9]{2,4})"
+        ]
+        for mp in mfg_patterns:
+            m = re.search(mp, cleaned, re.IGNORECASE)
+            if m:
+                mfg_date = normalize_date_string(m.group(1))
+                if mfg_date:
+                    break
+
+    # 7. Dosage Form extraction
     dosage = None
     for d_form in ["Capsule", "Tablet", "Vial", "Injection", "Syrup", "Suspension", "Ointment", "Drops", "Cream", "Gel", "Inhaler"]:
         if re.search(rf"\b{d_form}s?\b", cleaned, re.IGNORECASE):
@@ -555,7 +627,7 @@ def parse_medicine_text(raw_text: str) -> Dict[str, Any]:
     if not dosage and matched_meta:
         dosage = matched_meta["dosage"]
 
-    # 7. Manufacturer detection
+    # 8. Manufacturer detection
     manufacturer = None
     for comp in KNOWN_MANUFACTURERS:
         if re.search(rf"\b{re.escape(comp)}\b", cleaned, re.IGNORECASE):
@@ -564,7 +636,7 @@ def parse_medicine_text(raw_text: str) -> Dict[str, Any]:
     if not manufacturer and matched_meta and matched_meta.get("manufacturer"):
         manufacturer = matched_meta["manufacturer"]
 
-    # 8. Medicine Name, Generic & Brand (Strict validation - never accept random OCR noise!)
+    # 9. Medicine Name, Generic & Brand
     name = matched_meta["name"] if matched_meta else None
     generic = matched_meta["generic"] if matched_meta else None
     brand = matched_meta["brand"] if matched_meta else None
@@ -575,7 +647,6 @@ def parse_medicine_text(raw_text: str) -> Dict[str, Any]:
             generic = gen_match.group(1).capitalize()
 
     if not name:
-        # Only accept a line as medicine name if it contains a generic drug name or a valid dosage strength
         for line in cleaned.splitlines():
             line_s = line.strip()
             if re.search(r"\b(batch|b\.no|lot|exp|expiry|mfg|mfd|price|mrp|tk|bdt|store|keep|lic|dar)\b", line_s, re.IGNORECASE):
@@ -592,7 +663,7 @@ def parse_medicine_text(raw_text: str) -> Dict[str, Any]:
     if found_fields == 0:
         conf = 0.15
     else:
-        conf = round(min(0.95, 0.30 + (found_fields * 0.12)), 2)
+        conf = round(min(0.96, 0.30 + (found_fields * 0.11)), 2)
 
     # Safety & Expiry calculations
     days_left = None
@@ -667,7 +738,7 @@ def get_root():
     return {
         "service": "MedShare AI Microservice",
         "status": "online",
-        "version": "1.3.0",
+        "version": "1.4.0",
         "ocr_engine": "pytesseract" if PYTESSERACT_AVAILABLE else "unavailable",
         "ocr_languages": AVAILABLE_LANGS,
         "opencv_available": CV2_AVAILABLE
@@ -687,7 +758,7 @@ def health():
 def scan_medicine_endpoint(payload: ScanMedicineRequest):
     """
     Main OCR endpoint accepting base64 image or raw text hint.
-    Automatically rotates vertical medicine strips and extracts verified details.
+    Automatically rotates vertical medicine strips and scans blister margins for batch/expiry stamps.
     """
     raw_ocr = payload.raw_ocr_hint or ""
 
