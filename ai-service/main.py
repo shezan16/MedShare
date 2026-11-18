@@ -1,18 +1,19 @@
 import os
 import re
+import io
 import math
 import base64
 import hashlib
 from datetime import datetime, date
 from typing import List, Optional, Dict, Any
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 app = FastAPI(
     title="MedShare AI Vision & Intelligence Microservice",
     description="Production-grade AI microservice for Medicine OCR, Expiry/Batch extraction, Human-in-the-Loop verification, and Donor Matching",
-    version="1.0.0"
+    version="1.1.0"
 )
 
 app.add_middleware(
@@ -23,11 +24,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ----------------- Optional Image Libraries -----------------
+# ----------------- Image & OCR Libraries -----------------
+CV2_AVAILABLE = False
+try:
+    import cv2
+    import numpy as np
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
+
 PIL_AVAILABLE = False
 try:
-    from PIL import Image
-    import io
+    from PIL import Image, ImageOps, ImageEnhance
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
@@ -35,6 +43,8 @@ except ImportError:
 PYTESSERACT_AVAILABLE = False
 try:
     import pytesseract
+    # Verify tesseract binary is actually installed
+    pytesseract.get_tesseract_version()
     PYTESSERACT_AVAILABLE = True
 except Exception:
     PYTESSERACT_AVAILABLE = False
@@ -47,22 +57,22 @@ class ScanMedicineRequest(BaseModel):
     raw_ocr_hint: Optional[str] = Field(None, description="Optional raw text input for parsing")
 
 class OCRScanResult(BaseModel):
-    medicineName: str
-    genericName: str
+    medicineName: Optional[str] = None
+    genericName: Optional[str] = None
     brandName: Optional[str] = None
-    strength: str
-    dosageForm: str
-    manufacturer: str
-    batchNumber: str
-    mfgDate: str
-    expiryDate: str
+    strength: Optional[str] = None
+    dosageForm: Optional[str] = None
+    manufacturer: Optional[str] = None
+    batchNumber: Optional[str] = None
+    mfgDate: Optional[str] = None
+    expiryDate: Optional[str] = None
     confidence: float
     verificationStatus: str
     humanReviewRequired: bool
     verificationNotice: str
     extractedTextRaw: str
     safetyWarnings: List[str]
-    daysUntilExpiry: int
+    daysUntilExpiry: Optional[int] = None
 
 class HumanSignoffRequest(BaseModel):
     medicineId: str
@@ -128,227 +138,263 @@ class ChatResponse(BaseModel):
     suggestedActions: List[str]
     disclaimer: str
 
-# ----------------- Pattern Recognition & OCR Parsers -----------------
-
+# ----------------- Known Medicines Reference Catalog -----------------
+# Used ONLY when actual OCR text matches the medicine name/generic!
 KNOWN_MEDICINES = [
     {
-        "pattern": r"(amox|amoxicillin|amoxil|augmentin)",
-        "name": "Amoxicillin Trihydrate BP 500mg",
+        "pattern": r"\b(amox|amoxicillin|amoxil|augmentin|moxacil)\b",
+        "name": "Amoxicillin Trihydrate",
         "generic": "Amoxicillin",
-        "brand": "Amoxil",
-        "strength": "500 mg",
+        "brand": "Amoxil / Moxacil",
         "dosage": "Capsule",
-        "manufacturer": "Sandoz / Novartis",
-        "defaultBatch": "AX-2025-884B",
-        "defaultMfg": "2025-03-01",
-        "defaultExp": "2027-08-01",
-        "coldChain": False,
-        "sampleText": "Amoxicillin Trihydrate BP 500mg Capsules\nBatch No: AX-2025-884B\nMFG: 03/2025  EXP: 08/2027\nStore below 25C in dry place."
+        "coldChain": False
     },
     {
-        "pattern": r"(paracetamol|panadol|calpol|acetaminophen|tylenol)",
-        "name": "Paracetamol IP 650mg Tablets",
+        "pattern": r"\b(paracetamol|panadol|calpol|acetaminophen|napa|ace)\b",
+        "name": "Paracetamol",
         "generic": "Paracetamol",
-        "brand": "Calpol / Panadol",
-        "strength": "650 mg",
+        "brand": "Napa / Ace / Panadol",
         "dosage": "Tablet",
-        "manufacturer": "GlaxoSmithKline",
-        "defaultBatch": "GSK-9921A",
-        "defaultMfg": "2025-05-15",
-        "defaultExp": "2027-05-15",
-        "coldChain": False,
-        "sampleText": "Paracetamol Tablets IP 650mg\nBatch: GSK-9921A\nMFG.DATE: 05/2025\nEXP.DATE: 05/2027\nStore protected from light."
+        "coldChain": False
     },
     {
-        "pattern": r"(metformin|glucophage)",
-        "name": "Metformin Hydrochloride 500mg XR",
+        "pattern": r"\b(metformin|glucophage|comet)\b",
+        "name": "Metformin Hydrochloride",
         "generic": "Metformin HCl",
-        "brand": "Glucophage XR",
-        "strength": "500 mg",
+        "brand": "Comet / Glucophage",
         "dosage": "Tablet",
-        "manufacturer": "Merck Healthcare",
-        "defaultBatch": "MET-4109",
-        "defaultMfg": "2025-11-15",
-        "defaultExp": "2027-11-15",
-        "coldChain": False,
-        "sampleText": "Metformin HCl 500mg prolonged release\nB.No: MET-4109\nMFG: 11/2025 EXP: 11/2027\nStore below 30C."
+        "coldChain": False
     },
     {
-        "pattern": r"(insulin|humulin|actrapid|novorapid|lantus)",
-        "name": "Human Regular Insulin 100 IU/ml",
-        "generic": "Human Regular Insulin",
-        "brand": "Actrapid",
-        "strength": "100 IU/ml",
+        "pattern": r"\b(insulin|humulin|actrapid|novorapid|lantus)\b",
+        "name": "Human Insulin",
+        "generic": "Insulin",
+        "brand": "Actrapid / Lantus",
         "dosage": "Vial / Injection",
-        "manufacturer": "Novo Nordisk",
-        "defaultBatch": "NN-54210",
-        "defaultMfg": "2026-06-01",
-        "defaultExp": "2027-12-15",
-        "coldChain": True,
-        "sampleText": "Human Insulin 100 IU/ml\nB.No: NN-54210\nMFG: 06/2026 EXP: 12/2027\nStore at 2C to 8C. Cold Chain Mandatory."
+        "coldChain": True
     },
     {
-        "pattern": r"(azithro|azithromycin|zithromax)",
-        "name": "Azithromycin Tablets USP 500mg",
+        "pattern": r"\b(azithro|azithromycin|zithromax|zimax)\b",
+        "name": "Azithromycin",
         "generic": "Azithromycin",
-        "brand": "Zithromax",
-        "strength": "500 mg",
+        "brand": "Zimax / Zithromax",
         "dosage": "Tablet",
-        "manufacturer": "Pfizer Inc.",
-        "defaultBatch": "PZ-7712A",
-        "defaultMfg": "2025-02-12",
-        "defaultExp": "2027-08-15",
-        "coldChain": False,
-        "sampleText": "Azithromycin Tablets USP 500mg\nBatch: PZ-7712A\nMFG: 02/2025 EXP: 08/2027\nStore in cool dry place."
+        "coldChain": False
     },
     {
-        "pattern": r"(cefixime|suprax)",
-        "name": "Cefixime Trihydrate 200mg",
+        "pattern": r"\b(cefixime|suprax|cef-3)\b",
+        "name": "Cefixime Trihydrate",
         "generic": "Cefixime",
-        "brand": "Suprax",
-        "strength": "200 mg",
-        "dosage": "Tablet",
-        "manufacturer": "Lupin Pharmaceuticals",
-        "defaultBatch": "LP-3910A",
-        "defaultMfg": "2025-01-20",
-        "defaultExp": "2027-09-30",
-        "coldChain": False,
-        "sampleText": "Cefixime Tablets 200mg\nBatch: LP-3910A\nMFG: 01/2025 EXP: 09/2027"
+        "brand": "Cef-3 / Suprax",
+        "dosage": "Capsule",
+        "coldChain": False
+    },
+    {
+        "pattern": r"\b(omeprazole|seclo|losectil|esomeprazole|sergel)\b",
+        "name": "Omeprazole / Esomeprazole",
+        "generic": "Omeprazole",
+        "brand": "Seclo / Sergel",
+        "dosage": "Capsule",
+        "coldChain": False
     }
 ]
 
-def parse_medicine_text(raw_text: str, filename: str = "") -> Dict[str, Any]:
+# ----------------- Image Preprocessing & OCR -----------------
+
+def extract_text_from_base64(image_base64: str) -> str:
+    """Decodes base64 image, enhances contrast/sharpness, and runs Tesseract OCR."""
+    if not PYTESSERACT_AVAILABLE:
+        return ""
+
+    try:
+        # Strip data:image/...;base64, prefix if present
+        b64_data = image_base64.split(",")[-1].strip()
+        img_bytes = base64.b64decode(b64_data)
+
+        if CV2_AVAILABLE:
+            nparr = np.frombuffer(img_bytes, np.uint8)
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if img is None:
+                return ""
+            
+            # Resize if too small for better OCR accuracy
+            height, width = img.shape[:2]
+            if width < 1000:
+                scale = 1000 / width
+                img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            # Denoise and apply adaptive thresholding
+            denoised = cv2.fastNlMeansDenoising(gray, None, 10, 7, 21)
+            thresh = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+            
+            # Run Tesseract with PSM 6 (uniform block of text) and PSM 11 (sparse text)
+            text_psm6 = pytesseract.image_to_string(thresh, config="--psm 6")
+            text_psm11 = pytesseract.image_to_string(gray, config="--psm 11")
+            
+            combined_text = f"{text_psm6}\n{text_psm11}".strip()
+            return combined_text
+
+        elif PIL_AVAILABLE:
+            image = Image.open(io.BytesIO(img_bytes))
+            gray = ImageOps.grayscale(image)
+            enhancer = ImageEnhance.Contrast(gray)
+            enhanced = enhancer.enhance(2.0)
+            return pytesseract.image_to_string(enhanced, config="--psm 6").strip()
+
+    except Exception as e:
+        print(f"OCR Extraction Error: {e}")
+        return ""
+    return ""
+
+def normalize_date_string(raw_date: str) -> Optional[str]:
+    """Converts MM/YY, MM/YYYY, YYYY-MM-DD into standard YYYY-MM-DD."""
+    clean = raw_date.strip().replace(".", "/").replace("-", "/")
+    parts = clean.split("/")
+    try:
+        if len(parts) == 2:
+            month, year = int(parts[0]), parts[1]
+            if len(year) == 2:
+                year = f"20{year}"
+            year_int = int(year)
+            if 1 <= month <= 12 and 2020 <= year_int <= 2035:
+                return f"{year_int}-{month:02d}-01"
+        elif len(parts) == 3:
+            if len(parts[0]) == 4: # YYYY/MM/DD
+                y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+            else: # DD/MM/YYYY or DD/MM/YY
+                d, m = int(parts[0]), int(parts[1])
+                y = int(f"20{parts[2]}") if len(parts[2]) == 2 else int(parts[2])
+            if 1 <= m <= 12 and 1 <= d <= 31 and 2020 <= y <= 2035:
+                return f"{y}-{m:02d}-{d:02d}"
+    except ValueError:
+        pass
+    return None
+
+def parse_medicine_text(raw_text: str) -> Dict[str, Any]:
     """
-    Extracts medicine details using regex heuristics and computer vision pattern matchers.
+    Strictly extracts medicine details from real OCR text.
+    NEVER fabricates batch numbers, expiry dates, or names if not detected.
     """
     cleaned = raw_text.strip()
-    search_corpus = f"{cleaned} {filename}".lower()
+    warnings = []
 
-    # Match against known medicines catalog
+    # If no text detected at all
+    if not cleaned or len(cleaned) < 3:
+        engine_msg = (
+            "No readable text detected in the image. Please upload a clearer, well-lit photo."
+            if PYTESSERACT_AVAILABLE else
+            "OCR Engine (Tesseract) is not installed on the server. Manual pharmacist entry required."
+        )
+        return {
+            "medicineName": None,
+            "genericName": None,
+            "brandName": None,
+            "strength": None,
+            "dosageForm": None,
+            "manufacturer": None,
+            "batchNumber": None,
+            "mfgDate": None,
+            "expiryDate": None,
+            "confidence": 0.0,
+            "verificationStatus": "UNREADABLE",
+            "humanReviewRequired": True,
+            "verificationNotice": engine_msg,
+            "extractedTextRaw": "No raw OCR text detected.",
+            "safetyWarnings": ["UNREADABLE_IMAGE: Manual pharmacist verification mandatory."],
+            "daysUntilExpiry": None
+        }
+
+    # 1. Match against known medicines catalog ONLY using OCR text (not filename!)
     matched_meta = None
     for med in KNOWN_MEDICINES:
-        if re.search(med["pattern"], search_corpus):
+        if re.search(med["pattern"], cleaned, re.IGNORECASE):
             matched_meta = med
             break
 
-    # 1. Batch Number extraction
+    # 2. Batch Number extraction (Strict - returns None if not found)
     batch_num = None
     batch_patterns = [
-        r"(?:batch|b\.?no|lot|bn|lot#)[:\s]*([a-zA-Z0-9\-_]{4,15})",
-        r"\b(b[0-9]{4,8})\b",
-        r"\b([a-z]{2,4}[-_]?[0-9]{4,8}[a-z]?)\b"
+        r"(?:batch(?:\s*no)?|b\.?\s*no|lot(?:\s*no)?|bn|b\.?n)[:\.\-\s]*([a-zA-Z0-9\-/]{4,16})",
     ]
     for bp in batch_patterns:
         m = re.search(bp, cleaned, re.IGNORECASE)
         if m:
-            batch_num = m.group(1).strip().upper()
-            break
-    if not batch_num and matched_meta:
-        batch_num = matched_meta["defaultBatch"]
-    elif not batch_num:
-        batch_num = "BATCH-OCR-9021"
+            candidate = m.group(1).strip().upper()
+            # Filter out common false-positive words like "DATE" or "NUMBER"
+            if candidate not in ["DATE", "NUMBER", "EXP", "MFG"]:
+                batch_num = candidate
+                break
 
-    # 2. Expiry Date extraction
+    # 3. Expiry Date extraction (Strict - returns None if not found)
     expiry_date = None
     exp_patterns = [
-        r"(?:exp|expiry|exp\.?date|use\s*before|best\s*before)[:\s]*([0-9]{1,2}[\/\-][0-9]{2,4}|[0-9]{4}[\/\-][0-9]{1,2}[\/\-][0-9]{1,2})",
-        r"\b(202[7-9][\/\-][0-9]{1,2}[\/\-][0-9]{1,2})\b",
-        r"\b([0-9]{1,2}[\/\-]202[7-9])\b"
+        r"(?:exp(?:iry)?(?:\s*date)?|use\s*before|best\s*before|ed)[:\.\-\s]*([0-9]{1,2}[\/\-\.][0-9]{2,4}|[0-9]{4}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{1,2})"
     ]
     for ep in exp_patterns:
         m = re.search(ep, cleaned, re.IGNORECASE)
         if m:
-            exp_raw = m.group(1).strip()
-            # Normalize to YYYY-MM-DD
-            if "/" in exp_raw or "-" in exp_raw:
-                delim = "/" if "/" in exp_raw else "-"
-                parts = exp_raw.split(delim)
-                if len(parts) == 2:
-                    month, year = parts[0], parts[1]
-                    year = f"20{year}" if len(year) == 2 else year
-                    expiry_date = f"{year}-{int(month):02d}-01"
-                elif len(parts) == 3:
-                    if len(parts[0]) == 4:
-                        expiry_date = f"{parts[0]}-{int(parts[1]):02d}-{int(parts[2]):02d}"
-                    else:
-                        year = f"20{parts[2]}" if len(parts[2]) == 2 else parts[2]
-                        expiry_date = f"{year}-{int(parts[1]):02d}-{int(parts[0]):02d}"
-            break
-    if not expiry_date and matched_meta:
-        expiry_date = matched_meta["defaultExp"]
-    elif not expiry_date:
-        expiry_date = "2027-12-31"
+            expiry_date = normalize_date_string(m.group(1))
+            if expiry_date:
+                break
 
-    # 3. Manufacturing Date extraction
+    # 4. Manufacturing Date extraction (Strict - returns None if not found)
     mfg_date = None
-    mfg_match = re.search(r"(?:mfg|mfd|mfg\.?date)[:\s]*([0-9]{1,2}[\/\-][0-9]{2,4}|[0-9]{4}[\/\-][0-9]{1,2})", cleaned, re.IGNORECASE)
+    mfg_match = re.search(
+        r"(?:mfg|mfd|mfg\.?\s*date|manuf)[:\.\-\s]*([0-9]{1,2}[\/\-\.][0-9]{2,4}|[0-9]{4}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{1,2})",
+        cleaned,
+        re.IGNORECASE
+    )
     if mfg_match:
-        mfg_raw = mfg_match.group(1).strip()
-        delim = "/" if "/" in mfg_raw else "-"
-        parts = mfg_raw.split(delim)
-        if len(parts) == 2:
-            m, y = parts[0], parts[1]
-            y = f"20{y}" if len(y) == 2 else y
-            mfg_date = f"{y}-{int(m):02d}-01"
-    if not mfg_date and matched_meta:
-        mfg_date = matched_meta["defaultMfg"]
-    elif not mfg_date:
-        mfg_date = "2025-01-01"
+        mfg_date = normalize_date_string(mfg_match.group(1))
 
-    # 4. Strength extraction (e.g. 500mg, 650 mg, 100 IU/ml)
+    # 5. Strength extraction (e.g. 500mg, 650 mg, 100 IU/ml)
     strength = None
-    str_match = re.search(r"([0-9]+(?:\.[0-9]+)?\s*(?:mg|g|ml|mcg|iu|iu\/ml))", cleaned, re.IGNORECASE)
+    str_match = re.search(r"\b([0-9]+(?:\.[0-9]+)?\s*(?:mg|g|ml|mcg|iu|iu\/ml))\b", cleaned, re.IGNORECASE)
     if str_match:
         strength = str_match.group(1).strip()
-    elif matched_meta:
-        strength = matched_meta["strength"]
-    else:
-        strength = "500 mg"
 
-    # 5. Dosage Form
-    dosage = "Tablet"
-    for d_form in ["Capsule", "Tablet", "Vial", "Injection", "Syrup", "Suspension", "Ointment"]:
-        if re.search(rf"\b{d_form}\b", cleaned, re.IGNORECASE):
+    # 6. Dosage Form extraction
+    dosage = None
+    for d_form in ["Capsule", "Tablet", "Vial", "Injection", "Syrup", "Suspension", "Ointment", "Drops"]:
+        if re.search(rf"\b{d_form}s?\b", cleaned, re.IGNORECASE):
             dosage = d_form
             break
-    if matched_meta and (dosage == "Tablet" and matched_meta["dosage"] != "Tablet"):
+    if not dosage and matched_meta:
         dosage = matched_meta["dosage"]
 
-    # 6. Medicine Name & Generic
-    name = matched_meta["name"] if matched_meta else "Recognized Surplus Medicine"
-    generic = matched_meta["generic"] if matched_meta else "Active Pharmaceutical Ingredient"
+    # 7. Medicine Name & Generic
+    name = matched_meta["name"] if matched_meta else None
+    generic = matched_meta["generic"] if matched_meta else None
     brand = matched_meta["brand"] if matched_meta else None
-    manufacturer = matched_meta["manufacturer"] if matched_meta else "Verified Pharmaceutical Manufacturer"
 
-    # Confidence calculation (0.0 to 1.0)
-    conf = 0.50
-    if matched_meta: conf += 0.25
-    if batch_num and batch_num != "BATCH-OCR-9021": conf += 0.12
-    if expiry_date: conf += 0.08
-    if strength: conf += 0.05
-    conf = min(0.98, round(conf, 2))
+    # Calculate real confidence based on how many fields were actually extracted
+    found_fields = sum(1 for f in [name, batch_num, expiry_date, strength] if f is not None)
+    conf = round(min(0.95, 0.25 + (found_fields * 0.18)), 2)
 
-    # Safety checks
-    warnings = []
-    days_left = 365
-    try:
-        exp_dt = datetime.strptime(expiry_date[:10], "%Y-%m-%d").date()
-        today = date.today()
-        days_left = (exp_dt - today).days
+    # Safety & Expiry calculations
+    days_left = None
+    if expiry_date:
+        try:
+            exp_dt = datetime.strptime(expiry_date, "%Y-%m-%d").date()
+            days_left = (exp_dt - date.today()).days
 
-        if days_left <= 0:
-            warnings.append("EXPIRED_MEDICINE: This medicine has expired and is legally barred from redistribution.")
-        elif days_left <= 7:
-            warnings.append(f"CRITICAL_EXPIRING_7D: Medicine expires in {days_left} days. Urgent emergency dispensing only.")
-        elif days_left <= 30:
-            warnings.append(f"EXPIRING_SOON_30D: Medicine expires in {days_left} days. Prioritized redistribution.")
-    except Exception:
-        pass
+            if days_left <= 0:
+                warnings.append("EXPIRED_MEDICINE: This medicine has expired and is legally barred from redistribution.")
+            elif days_left <= 7:
+                warnings.append(f"CRITICAL_EXPIRING_7D: Medicine expires in {days_left} days. Urgent emergency dispensing only.")
+            elif days_left <= 30:
+                warnings.append(f"EXPIRING_SOON_30D: Medicine expires in {days_left} days. Prioritized redistribution.")
+        except Exception:
+            pass
+    else:
+        warnings.append("MISSING_EXPIRY: Expiry date could not be reliably read from image. Pharmacist must verify.")
+
+    if not batch_num:
+        warnings.append("MISSING_BATCH: Batch number could not be reliably read from image. Pharmacist must verify.")
 
     if matched_meta and matched_meta.get("coldChain"):
-        warnings.append("COLD_CHAIN_ALERT: Continuous 2°C to 8°C refrigeration is mandatory for this biological formulation.")
-
-    raw_output = cleaned if len(cleaned) > 10 else (matched_meta["sampleText"] if matched_meta else "No raw OCR text detected.")
+        warnings.append("COLD_CHAIN_ALERT: Continuous 2°C to 8°C refrigeration is mandatory for this formulation.")
 
     return {
         "medicineName": name,
@@ -356,15 +402,15 @@ def parse_medicine_text(raw_text: str, filename: str = "") -> Dict[str, Any]:
         "brandName": brand,
         "strength": strength,
         "dosageForm": dosage,
-        "manufacturer": manufacturer,
+        "manufacturer": None, # Avoid guessing manufacturer unless explicitly parsed
         "batchNumber": batch_num,
         "mfgDate": mfg_date,
         "expiryDate": expiry_date,
         "confidence": conf,
         "verificationStatus": "PENDING",
         "humanReviewRequired": True,
-        "verificationNotice": "OCR extraction represents machine suggestions. A licensed pharmacist must confirm batch numbers and expiration dates prior to redistribution.",
-        "extractedTextRaw": raw_output,
+        "verificationNotice": "OCR extraction represents machine suggestions. Missing fields are left null for safety. A licensed pharmacist must confirm all details prior to redistribution.",
+        "extractedTextRaw": cleaned,
         "safetyWarnings": warnings,
         "daysUntilExpiry": days_left
     }
@@ -397,9 +443,9 @@ def get_root():
     return {
         "service": "MedShare AI Microservice",
         "status": "online",
-        "version": "1.0.0",
-        "ocr_engine": "pytesseract" if PYTESSERACT_AVAILABLE else "pattern-vision-engine",
-        "pil_available": PIL_AVAILABLE
+        "version": "1.1.0",
+        "ocr_engine": "pytesseract" if PYTESSERACT_AVAILABLE else "unavailable",
+        "opencv_available": CV2_AVAILABLE
     }
 
 @app.get("/health")
@@ -407,38 +453,28 @@ def health():
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
-        "tesseract": PYTESSERACT_AVAILABLE
+        "tesseract": PYTESSERACT_AVAILABLE,
+        "opencv": CV2_AVAILABLE
     }
 
 @app.post("/ocr/scan-medicine", response_model=OCRScanResult)
 def scan_medicine_endpoint(payload: ScanMedicineRequest):
     """
-    Main OCR endpoint accepting base64 image or filename pattern hint.
-    Extracts medicine name, generic name, batch number, mfg date, expiry date, strength, and confidence score.
-    Enforces Human-in-the-Loop review requirement.
+    Main OCR endpoint accepting base64 image.
+    Extracts real text using OpenCV + Tesseract and parses medicine details without fabricating fallback data.
     """
     raw_ocr = payload.raw_ocr_hint or ""
-    filename = payload.filename or ""
 
-    # If base64 provided and PIL available, attempt optical reading
-    if payload.image_base64 and PIL_AVAILABLE and PYTESSERACT_AVAILABLE:
-        try:
-            img_bytes = base64.b64decode(payload.image_base64.split(",")[-1])
-            image = Image.open(io.BytesIO(img_bytes))
-            raw_ocr = pytesseract.image_to_string(image)
-        except Exception:
-            pass
+    if payload.image_base64:
+        extracted_text = extract_text_from_base64(payload.image_base64)
+        if extracted_text:
+            raw_ocr = extracted_text
 
-    extracted = parse_medicine_text(raw_ocr, filename)
+    extracted = parse_medicine_text(raw_ocr)
     return OCRScanResult(**extracted)
 
 @app.post("/ocr/verify-human-signoff", response_model=HumanSignoffResponse)
 def verify_human_signoff(payload: HumanSignoffRequest):
-    """
-    Human verification workflow:
-    Licensed pharmacist audits OCR extractions, confirms batch and expiry dates,
-    and submits digital sign-off receipt with cryptographic SHA-256 seal.
-    """
     if not payload.pharmacistLicense or len(payload.pharmacistLicense.strip()) < 4:
         raise HTTPException(status_code=400, detail="Invalid pharmacist license credentials.")
 
@@ -459,10 +495,6 @@ def verify_human_signoff(payload: HumanSignoffRequest):
 
 @app.post("/matching/rank-donors", response_model=List[RankedDonor])
 def rank_donors_endpoint(payload: RankRequest):
-    """
-    Ranks compatible donors based on multi-factor scoring:
-    Distance 35%, Availability 25%, Verification 20%, Response 10%, Eligibility 10%
-    """
     ranked_list = []
     rec_group = payload.requiredBloodGroup.replace("_", "+") if "_" in payload.requiredBloodGroup else payload.requiredBloodGroup
     compatible_groups = BLOOD_COMPATIBILITY.get(rec_group.upper(), ["O-", "O+"])
@@ -489,7 +521,6 @@ def rank_donors_endpoint(payload: RankRequest):
             (elig_score * 0.10)
         )
 
-        # Mask donor name (John Doe -> John D.)
         parts = donor.fullName.strip().split(" ")
         masked_name = f"{parts[0]} {parts[-1][0]}." if len(parts) > 1 else donor.fullName
 
@@ -516,10 +547,6 @@ def rank_donors_endpoint(payload: RankRequest):
 
 @app.post("/assistant/chat", response_model=ChatResponse)
 def ai_assistant_chat(payload: ChatRequest):
-    """
-    Healthcare AI platform assistant.
-    Strict non-diagnostic guardrails.
-    """
     last_msg = payload.messages[-1].content.lower() if payload.messages else ""
     disclaimer = "MedShare AI provides platform assistance only. It does not provide medical diagnoses or prescriptions."
 
