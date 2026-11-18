@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 app = FastAPI(
     title="MedShare AI Vision & Intelligence Microservice",
     description="Production-grade AI microservice for Medicine OCR, Expiry/Batch extraction, Human-in-the-Loop verification, and Donor Matching",
-    version="1.1.0"
+    version="1.2.0"
 )
 
 app.add_middleware(
@@ -43,7 +43,6 @@ except ImportError:
 PYTESSERACT_AVAILABLE = False
 try:
     import pytesseract
-    # Verify tesseract binary is actually installed
     pytesseract.get_tesseract_version()
     PYTESSERACT_AVAILABLE = True
 except Exception:
@@ -139,18 +138,9 @@ class ChatResponse(BaseModel):
     disclaimer: str
 
 # ----------------- Known Medicines Reference Catalog -----------------
-# Used ONLY when actual OCR text matches the medicine name/generic!
 KNOWN_MEDICINES = [
     {
-        "pattern": r"\b(amox|amoxicillin|amoxil|augmentin|moxacil)\b",
-        "name": "Amoxicillin Trihydrate",
-        "generic": "Amoxicillin",
-        "brand": "Amoxil / Moxacil",
-        "dosage": "Capsule",
-        "coldChain": False
-    },
-    {
-        "pattern": r"\b(paracetamol|panadol|calpol|acetaminophen|napa|ace)\b",
+        "pattern": r"\b(napa|ace|paracetamol|panadol|calpol|acetaminophen|tylenol|fast|renova)\b",
         "name": "Paracetamol",
         "generic": "Paracetamol",
         "brand": "Napa / Ace / Panadol",
@@ -158,23 +148,23 @@ KNOWN_MEDICINES = [
         "coldChain": False
     },
     {
-        "pattern": r"\b(metformin|glucophage|comet)\b",
-        "name": "Metformin Hydrochloride",
-        "generic": "Metformin HCl",
-        "brand": "Comet / Glucophage",
-        "dosage": "Tablet",
+        "pattern": r"\b(seclo|sergel|maxpro|losectil|omeprazole|esomeprazole|pantonix|finix|pantoprazole|rabeprazole)\b",
+        "name": "Proton Pump Inhibitor (PPI)",
+        "generic": "Omeprazole / Esomeprazole",
+        "brand": "Seclo / Sergel / Maxpro",
+        "dosage": "Capsule",
         "coldChain": False
     },
     {
-        "pattern": r"\b(insulin|humulin|actrapid|novorapid|lantus)\b",
-        "name": "Human Insulin",
-        "generic": "Insulin",
-        "brand": "Actrapid / Lantus",
-        "dosage": "Vial / Injection",
-        "coldChain": True
+        "pattern": r"\b(amox|amoxicillin|amoxil|augmentin|moxacil|fimoxyl)\b",
+        "name": "Amoxicillin Trihydrate",
+        "generic": "Amoxicillin",
+        "brand": "Moxacil / Amoxil",
+        "dosage": "Capsule",
+        "coldChain": False
     },
     {
-        "pattern": r"\b(azithro|azithromycin|zithromax|zimax)\b",
+        "pattern": r"\b(azithro|azithromycin|zithromax|zimax|azicin|tridosil)\b",
         "name": "Azithromycin",
         "generic": "Azithromycin",
         "brand": "Zimax / Zithromax",
@@ -182,32 +172,108 @@ KNOWN_MEDICINES = [
         "coldChain": False
     },
     {
-        "pattern": r"\b(cefixime|suprax|cef-3)\b",
+        "pattern": r"\b(cefixime|suprax|cef-3|cef3|orcef|t-cef)\b",
         "name": "Cefixime Trihydrate",
         "generic": "Cefixime",
-        "brand": "Cef-3 / Suprax",
+        "brand": "Cef-3 / Orcef",
         "dosage": "Capsule",
         "coldChain": False
     },
     {
-        "pattern": r"\b(omeprazole|seclo|losectil|esomeprazole|sergel)\b",
-        "name": "Omeprazole / Esomeprazole",
-        "generic": "Omeprazole",
-        "brand": "Seclo / Sergel",
-        "dosage": "Capsule",
+        "pattern": r"\b(cefuroxime|kilbac|sefdin|cerox-a|furotil)\b",
+        "name": "Cefuroxime Axetil",
+        "generic": "Cefuroxime",
+        "brand": "Kilbac / Furotil",
+        "dosage": "Tablet",
         "coldChain": False
+    },
+    {
+        "pattern": r"\b(ciprofloxacin|ciprocin|neofloxin)\b",
+        "name": "Ciprofloxacin",
+        "generic": "Ciprofloxacin",
+        "brand": "Ciprocin",
+        "dosage": "Tablet",
+        "coldChain": False
+    },
+    {
+        "pattern": r"\b(metformin|glucophage|comet|nobesit)\b",
+        "name": "Metformin Hydrochloride",
+        "generic": "Metformin HCl",
+        "brand": "Comet / Glucophage",
+        "dosage": "Tablet",
+        "coldChain": False
+    },
+    {
+        "pattern": r"\b(monas|montene|montair|montelukast|lumona)\b",
+        "name": "Montelukast Sodium",
+        "generic": "Montelukast",
+        "brand": "Monas / Lumona",
+        "dosage": "Tablet",
+        "coldChain": False
+    },
+    {
+        "pattern": r"\b(fexo|fexofenadine|telfast|fenadin|axodin)\b",
+        "name": "Fexofenadine Hydrochloride",
+        "generic": "Fexofenadine HCl",
+        "brand": "Fexo / Fenadin",
+        "dosage": "Tablet",
+        "coldChain": False
+    },
+    {
+        "pattern": r"\b(alatrol|cetirizine|zirtec)\b",
+        "name": "Cetirizine Hydrochloride",
+        "generic": "Cetirizine",
+        "brand": "Alatrol",
+        "dosage": "Tablet",
+        "coldChain": False
+    },
+    {
+        "pattern": r"\b(bizoran|amlocal|amlodipine|camlodin|ocal)\b",
+        "name": "Amlodipine",
+        "generic": "Amlodipine",
+        "brand": "Amlocal / Bizoran",
+        "dosage": "Tablet",
+        "coldChain": False
+    },
+    {
+        "pattern": r"\b(insulin|humulin|actrapid|novorapid|lantus|insulatard|maxsulin)\b",
+        "name": "Human Insulin",
+        "generic": "Insulin",
+        "brand": "Actrapid / Lantus / Maxsulin",
+        "dosage": "Vial / Injection",
+        "coldChain": True
     }
+]
+
+KNOWN_MANUFACTURERS = [
+    "Square", "Beximco", "Incepta", "Renata", "Healthcare", "Opsonin",
+    "Eskayef", "SK+F", "ACI", "Aristopharma", "Acme", "Drug International",
+    "Radiant", "Popular", "Beacon", "Orion", "Ibn Sina", "Sanofi",
+    "Novartis", "GSK", "GlaxoSmithKline", "Pfizer", "Novo Nordisk", "Sandoz", "Merck", "Lupin"
 ]
 
 # ----------------- Image Preprocessing & OCR -----------------
 
+def clean_ocr_noise(raw_text: str) -> str:
+    """Removes single-character garbage lines and OCR symbol artifacts."""
+    cleaned_lines = []
+    for line in raw_text.splitlines():
+        line_str = line.strip()
+        if not line_str:
+            continue
+        # Count alphanumeric characters in the line
+        alnum_count = sum(c.isalnum() for c in line_str)
+        # Keep line only if it has at least 3 alphanumeric chars and >40% valid characters
+        if alnum_count >= 3 and (alnum_count / len(line_str)) >= 0.4:
+            cleaned_lines.append(line_str)
+    return "\n".join(cleaned_lines)
+
 def extract_text_from_base64(image_base64: str) -> str:
-    """Decodes base64 image, enhances contrast/sharpness, and runs Tesseract OCR."""
+    """Decodes base64 image, applies gentle contrast enhancement (CLAHE), and runs clean Tesseract OCR."""
     if not PYTESSERACT_AVAILABLE:
         return ""
 
     try:
-        # Strip data:image/...;base64, prefix if present
         b64_data = image_base64.split(",")[-1].strip()
         img_bytes = base64.b64decode(b64_data)
 
@@ -216,31 +282,41 @@ def extract_text_from_base64(image_base64: str) -> str:
             img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
             if img is None:
                 return ""
-            
-            # Resize if too small for better OCR accuracy
-            height, width = img.shape[:2]
-            if width < 1000:
-                scale = 1000 / width
-                img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
 
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            # Denoise and apply adaptive thresholding
-            denoised = cv2.fastNlMeansDenoising(gray, None, 10, 7, 21)
-            thresh = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-            
-            # Run Tesseract with PSM 6 (uniform block of text) and PSM 11 (sparse text)
-            text_psm6 = pytesseract.image_to_string(thresh, config="--psm 6")
-            text_psm11 = pytesseract.image_to_string(gray, config="--psm 11")
-            
-            combined_text = f"{text_psm6}\n{text_psm11}".strip()
-            return combined_text
+
+            # Resize moderately if image is small
+            height, width = gray.shape[:2]
+            if width < 900:
+                scale = 900 / width
+                gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+
+            # Apply CLAHE to improve text contrast on medicine boxes/packs without creating binary noise
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            enhanced = clahe.apply(gray)
+
+            # Bilateral filter keeps text edges sharp while smoothing background texture
+            filtered = cv2.bilateralFilter(enhanced, 9, 75, 75)
+
+            # Pass 1: Standard page segmentation (--psm 3)
+            text_psm3 = pytesseract.image_to_string(filtered, lang="eng", config="--oem 3 --psm 3")
+            cleaned_psm3 = clean_ocr_noise(text_psm3)
+
+            # Pass 2: Uniform block of text (--psm 6)
+            text_psm6 = pytesseract.image_to_string(filtered, lang="eng", config="--oem 3 --psm 6")
+            cleaned_psm6 = clean_ocr_noise(text_psm6)
+
+            # Combine unique clean lines
+            combined_lines = list(dict.fromkeys((cleaned_psm3 + "\n" + cleaned_psm6).splitlines()))
+            return "\n".join([l for l in combined_lines if l.strip()])
 
         elif PIL_AVAILABLE:
             image = Image.open(io.BytesIO(img_bytes))
             gray = ImageOps.grayscale(image)
             enhancer = ImageEnhance.Contrast(gray)
-            enhanced = enhancer.enhance(2.0)
-            return pytesseract.image_to_string(enhanced, config="--psm 6").strip()
+            enhanced = enhancer.enhance(1.8)
+            raw = pytesseract.image_to_string(enhanced, lang="eng", config="--oem 3 --psm 6")
+            return clean_ocr_noise(raw)
 
     except Exception as e:
         print(f"OCR Extraction Error: {e}")
@@ -248,9 +324,27 @@ def extract_text_from_base64(image_base64: str) -> str:
     return ""
 
 def normalize_date_string(raw_date: str) -> Optional[str]:
-    """Converts MM/YY, MM/YYYY, YYYY-MM-DD into standard YYYY-MM-DD."""
-    clean = raw_date.strip().replace(".", "/").replace("-", "/")
-    parts = clean.split("/")
+    """Converts MM/YY, MM/YYYY, YYYY-MM-DD, or MMM YYYY into standard YYYY-MM-DD."""
+    clean = raw_date.strip()
+
+    # Check for text month formats like "AUG 2027", "DEC 26", "05 JAN 2027"
+    month_map = {
+        "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+        "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12
+    }
+    m_text = re.search(r"([a-zA-Z]{3})[a-zA-Z]*[\s\-\.,/]*(\d{2,4})", clean)
+    if m_text:
+        m_str = m_text.group(1).lower()
+        y_str = m_text.group(2)
+        if m_str in month_map:
+            month = month_map[m_str]
+            year_int = int(f"20{y_str}") if len(y_str) == 2 else int(y_str)
+            if 2020 <= year_int <= 2035:
+                return f"{year_int}-{month:02d}-01"
+
+    # Numeric formats: MM/YY, MM/YYYY, DD/MM/YYYY, YYYY-MM-DD
+    clean_num = clean.replace(".", "/").replace("-", "/").replace(" ", "/")
+    parts = [p for p in clean_num.split("/") if p.isdigit()]
     try:
         if len(parts) == 2:
             month, year = int(parts[0]), parts[1]
@@ -260,9 +354,9 @@ def normalize_date_string(raw_date: str) -> Optional[str]:
             if 1 <= month <= 12 and 2020 <= year_int <= 2035:
                 return f"{year_int}-{month:02d}-01"
         elif len(parts) == 3:
-            if len(parts[0]) == 4: # YYYY/MM/DD
+            if len(parts[0]) == 4:  # YYYY/MM/DD
                 y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
-            else: # DD/MM/YYYY or DD/MM/YY
+            else:  # DD/MM/YYYY or DD/MM/YY
                 d, m = int(parts[0]), int(parts[1])
                 y = int(f"20{parts[2]}") if len(parts[2]) == 2 else int(parts[2])
             if 1 <= m <= 12 and 1 <= d <= 31 and 2020 <= y <= 2035:
@@ -274,17 +368,18 @@ def normalize_date_string(raw_date: str) -> Optional[str]:
 def parse_medicine_text(raw_text: str) -> Dict[str, Any]:
     """
     Strictly extracts medicine details from real OCR text.
-    NEVER fabricates batch numbers, expiry dates, or names if not detected.
+    Never fabricates fake fallback data when fields are unreadable.
     """
     cleaned = raw_text.strip()
     warnings = []
 
-    # If no text detected at all
-    if not cleaned or len(cleaned) < 3:
+    # Check if text is empty or contains no real English words (3+ consecutive letters)
+    real_words = re.findall(r"[A-Za-z]{3,}", cleaned)
+    if not cleaned or len(real_words) == 0:
         engine_msg = (
-            "No readable text detected in the image. Please upload a clearer, well-lit photo."
+            "No clear medicine text detected in the image. Please upload a clear, well-lit photo of the medicine box or label."
             if PYTESSERACT_AVAILABLE else
-            "OCR Engine (Tesseract) is not installed on the server. Manual pharmacist entry required."
+            "OCR Engine (Tesseract) is not available on the server. Manual pharmacist entry required."
         )
         return {
             "medicineName": None,
@@ -300,36 +395,36 @@ def parse_medicine_text(raw_text: str) -> Dict[str, Any]:
             "verificationStatus": "UNREADABLE",
             "humanReviewRequired": True,
             "verificationNotice": engine_msg,
-            "extractedTextRaw": "No raw OCR text detected.",
-            "safetyWarnings": ["UNREADABLE_IMAGE: Manual pharmacist verification mandatory."],
+            "extractedTextRaw": cleaned if cleaned else "No raw OCR text detected.",
+            "safetyWarnings": ["UNREADABLE_IMAGE: Could not read clear text from image. Manual pharmacist verification mandatory."],
             "daysUntilExpiry": None
         }
 
-    # 1. Match against known medicines catalog ONLY using OCR text (not filename!)
+    # 1. Match against known medicines catalog
     matched_meta = None
     for med in KNOWN_MEDICINES:
         if re.search(med["pattern"], cleaned, re.IGNORECASE):
             matched_meta = med
             break
 
-    # 2. Batch Number extraction (Strict - returns None if not found)
+    # 2. Batch Number extraction
     batch_num = None
     batch_patterns = [
-        r"(?:batch(?:\s*no)?|b\.?\s*no|lot(?:\s*no)?|bn|b\.?n)[:\.\-\s]*([a-zA-Z0-9\-/]{4,16})",
+        r"(?:batch(?:\s*no\.?)?|b\.?\s*no\.?|lot(?:\s*no\.?)?|bn|b\.?n\.?)[:\.\-\s]+([A-Za-z0-9\-/]{3,16})",
     ]
     for bp in batch_patterns:
         m = re.search(bp, cleaned, re.IGNORECASE)
         if m:
             candidate = m.group(1).strip().upper()
-            # Filter out common false-positive words like "DATE" or "NUMBER"
-            if candidate not in ["DATE", "NUMBER", "EXP", "MFG"]:
+            # Must contain at least one digit or be valid batch code, not common label words
+            if candidate not in ["DATE", "NUMBER", "EXP", "MFG", "MFD", "MRP", "PRICE"] and any(c.isdigit() for c in candidate):
                 batch_num = candidate
                 break
 
-    # 3. Expiry Date extraction (Strict - returns None if not found)
+    # 3. Expiry Date extraction
     expiry_date = None
     exp_patterns = [
-        r"(?:exp(?:iry)?(?:\s*date)?|use\s*before|best\s*before|ed)[:\.\-\s]*([0-9]{1,2}[\/\-\.][0-9]{2,4}|[0-9]{4}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{1,2})"
+        r"(?:exp(?:iry)?(?:\s*date)?|use\s*before|best\s*before|exp\.?\s*dt|ed)[:\.\-\s]*([0-9]{1,2}[\/\-\.\s][0-9]{2,4}|[0-9]{4}[\/\-\.\s][0-9]{1,2}[\/\-\.\s][0-9]{1,2}|[A-Za-z]{3,9}[\s\-\.,/]+[0-9]{2,4})"
     ]
     for ep in exp_patterns:
         m = re.search(ep, cleaned, re.IGNORECASE)
@@ -338,39 +433,65 @@ def parse_medicine_text(raw_text: str) -> Dict[str, Any]:
             if expiry_date:
                 break
 
-    # 4. Manufacturing Date extraction (Strict - returns None if not found)
+    # 4. Manufacturing Date extraction
     mfg_date = None
-    mfg_match = re.search(
-        r"(?:mfg|mfd|mfg\.?\s*date|manuf)[:\.\-\s]*([0-9]{1,2}[\/\-\.][0-9]{2,4}|[0-9]{4}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{1,2})",
-        cleaned,
-        re.IGNORECASE
-    )
-    if mfg_match:
-        mfg_date = normalize_date_string(mfg_match.group(1))
+    mfg_patterns = [
+        r"(?:mfg(?:\s*date)?|mfd(?:\s*date)?|mfg\.?\s*dt|manuf(?:actured)?)[:\.\-\s]*([0-9]{1,2}[\/\-\.\s][0-9]{2,4}|[0-9]{4}[\/\-\.\s][0-9]{1,2}[\/\-\.\s][0-9]{1,2}|[A-Za-z]{3,9}[\s\-\.,/]+[0-9]{2,4})"
+    ]
+    for mp in mfg_patterns:
+        m = re.search(mp, cleaned, re.IGNORECASE)
+        if m:
+            mfg_date = normalize_date_string(m.group(1))
+            if mfg_date:
+                break
 
-    # 5. Strength extraction (e.g. 500mg, 650 mg, 100 IU/ml)
+    # 5. Strength extraction (e.g. 500mg, 650 mg, 100 IU/ml, 20 mg)
     strength = None
-    str_match = re.search(r"\b([0-9]+(?:\.[0-9]+)?\s*(?:mg|g|ml|mcg|iu|iu\/ml))\b", cleaned, re.IGNORECASE)
+    str_match = re.search(r"\b([0-9]+(?:\.[0-9]+)?\s*(?:mg|gm|g|ml|mcg|iu|iu\/ml|%))\b", cleaned, re.IGNORECASE)
     if str_match:
         strength = str_match.group(1).strip()
 
     # 6. Dosage Form extraction
     dosage = None
-    for d_form in ["Capsule", "Tablet", "Vial", "Injection", "Syrup", "Suspension", "Ointment", "Drops"]:
+    for d_form in ["Capsule", "Tablet", "Vial", "Injection", "Syrup", "Suspension", "Ointment", "Drops", "Cream", "Gel", "Inhaler"]:
         if re.search(rf"\b{d_form}s?\b", cleaned, re.IGNORECASE):
             dosage = d_form
             break
     if not dosage and matched_meta:
         dosage = matched_meta["dosage"]
 
-    # 7. Medicine Name & Generic
+    # 7. Manufacturer detection
+    manufacturer = None
+    for comp in KNOWN_MANUFACTURERS:
+        if re.search(rf"\b{re.escape(comp)}\b", cleaned, re.IGNORECASE):
+            manufacturer = f"{comp} Pharmaceuticals" if comp not in ["GSK", "GlaxoSmithKline", "Pfizer", "Novartis", "Sanofi", "Novo Nordisk"] else comp
+            break
+
+    # 8. Medicine Name, Generic & Brand (Fallback to clean OCR title line if not in KNOWN_MEDICINES)
     name = matched_meta["name"] if matched_meta else None
     generic = matched_meta["generic"] if matched_meta else None
     brand = matched_meta["brand"] if matched_meta else None
 
-    # Calculate real confidence based on how many fields were actually extracted
-    found_fields = sum(1 for f in [name, batch_num, expiry_date, strength] if f is not None)
-    conf = round(min(0.95, 0.25 + (found_fields * 0.18)), 2)
+    if not name:
+        for line in cleaned.splitlines():
+            line_s = line.strip()
+            # Skip metadata lines (batch, exp, mfg, price, storage instructions)
+            if re.search(r"\b(batch|b\.no|lot|exp|expiry|mfg|mfd|price|mrp|tk|bdt|store|keep|children|licht|light|temp|manufactured|license|dar|mfg\.lic)\b", line_s, re.IGNORECASE):
+                continue
+            # Look for a clean line with letters (at least 4 letters) that looks like a title
+            words = re.findall(r"[A-Za-z]{3,}", line_s)
+            if len(words) >= 1 and len(line_s) >= 4:
+                clean_title = re.sub(r"[^A-Za-z0-9\s\-\+/\.]", "", line_s).strip()
+                if len(clean_title) >= 4:
+                    name = clean_title[:60]
+                    break
+
+    # Calculate confidence score honestly
+    found_fields = sum(1 for f in [name, batch_num, expiry_date, strength, dosage] if f is not None)
+    if found_fields == 0:
+        conf = 0.15
+    else:
+        conf = round(min(0.95, 0.25 + (found_fields * 0.14)), 2)
 
     # Safety & Expiry calculations
     days_left = None
@@ -396,20 +517,22 @@ def parse_medicine_text(raw_text: str) -> Dict[str, Any]:
     if matched_meta and matched_meta.get("coldChain"):
         warnings.append("COLD_CHAIN_ALERT: Continuous 2°C to 8°C refrigeration is mandatory for this formulation.")
 
+    status = "PENDING" if found_fields > 0 else "UNREADABLE"
+
     return {
         "medicineName": name,
         "genericName": generic,
         "brandName": brand,
         "strength": strength,
         "dosageForm": dosage,
-        "manufacturer": None, # Avoid guessing manufacturer unless explicitly parsed
+        "manufacturer": manufacturer,
         "batchNumber": batch_num,
         "mfgDate": mfg_date,
         "expiryDate": expiry_date,
         "confidence": conf,
-        "verificationStatus": "PENDING",
+        "verificationStatus": status,
         "humanReviewRequired": True,
-        "verificationNotice": "OCR extraction represents machine suggestions. Missing fields are left null for safety. A licensed pharmacist must confirm all details prior to redistribution.",
+        "verificationNotice": "OCR extraction represents machine suggestions. Unreadable fields are left null for safety. A licensed pharmacist must confirm all details prior to redistribution.",
         "extractedTextRaw": cleaned,
         "safetyWarnings": warnings,
         "daysUntilExpiry": days_left
@@ -443,7 +566,7 @@ def get_root():
     return {
         "service": "MedShare AI Microservice",
         "status": "online",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "ocr_engine": "pytesseract" if PYTESSERACT_AVAILABLE else "unavailable",
         "opencv_available": CV2_AVAILABLE
     }
@@ -460,7 +583,7 @@ def health():
 @app.post("/ocr/scan-medicine", response_model=OCRScanResult)
 def scan_medicine_endpoint(payload: ScanMedicineRequest):
     """
-    Main OCR endpoint accepting base64 image.
+    Main OCR endpoint accepting base64 image or raw text hint.
     Extracts real text using OpenCV + Tesseract and parses medicine details without fabricating fallback data.
     """
     raw_ocr = payload.raw_ocr_hint or ""
@@ -468,7 +591,7 @@ def scan_medicine_endpoint(payload: ScanMedicineRequest):
     if payload.image_base64:
         extracted_text = extract_text_from_base64(payload.image_base64)
         if extracted_text:
-            raw_ocr = extracted_text
+            raw_ocr = f"{extracted_text}\n{raw_ocr}".strip()
 
     extracted = parse_medicine_text(raw_ocr)
     return OCRScanResult(**extracted)
