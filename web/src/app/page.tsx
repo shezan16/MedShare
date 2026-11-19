@@ -20,6 +20,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
+import HeroSection from '@/components/common/HeroSection';
 
 export default function LandingPage() {
   const [stats, setStats] = useState({
@@ -51,75 +52,8 @@ export default function LandingPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* ----------------- SECTION 2: HERO ----------------- */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-blue-50/70 via-white to-slate-50 pt-16 pb-24 lg:pt-24 lg:pb-32 border-b border-slate-200/60">
-        {/* Subtle grid backdrop */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-40 pointer-events-none" />
-
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          {/* Top Pill */}
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100/80 border border-blue-200 text-blue-800 text-xs font-semibold mb-6 shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-            <span>Next-Gen AI Healthcare Platform</span>
-            <span className="text-blue-400">•</span>
-            <span className="text-blue-700">Hackathon Innovation</span>
-          </div>
-
-          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-slate-900 max-w-4xl mx-auto leading-[1.15]">
-            One Platform.{' '}
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-600 to-red-600">
-              Two Lifesaving
-            </span>{' '}
-            Solutions.
-          </h1>
-
-          <p className="mt-6 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            Connecting emergency blood donors within minutes and enabling regulated, safe medicine redistribution through intelligent technology.
-          </p>
-
-          {/* Hero CTAs */}
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              href="/blood-requests/nearby-donors"
-              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-500/25 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 group"
-            >
-              <Heart className="w-4 h-4 text-red-300 group-hover:scale-110 transition-transform" />
-              Find Blood Donors
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-
-            <Link
-              href="/medicines"
-              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-semibold text-sm border border-slate-300 shadow-sm transition-all hover:border-slate-400 flex items-center justify-center gap-2"
-            >
-              <Pill className="w-4 h-4 text-emerald-600" />
-              Explore MedShare Inventory
-            </Link>
-
-            <Link
-              href="/blood-requests/new"
-              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm shadow-lg shadow-red-500/25 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
-            >
-              <AlertCircle className="w-4 h-4 animate-pulse" />
-              Emergency Request
-            </Link>
-          </div>
-
-          <div className="mt-8 flex items-center justify-center gap-6 text-xs text-slate-500">
-            <span className="flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" /> PostGIS Geo-fenced
-            </span>
-            <span>•</span>
-            <span className="flex items-center gap-1.5">
-              <Lock className="w-4 h-4 text-blue-600" /> Donor Privacy Protected
-            </span>
-            <span>•</span>
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-indigo-600" /> AI OCR Verification
-            </span>
-          </div>
-        </div>
-      </section>
+      {/* ----------------- SECTION 2: HERO (Dark Futuristic Video) ----------------- */}
+      <HeroSection />
 
       {/* ----------------- SECTION 3: LIVE STATISTICS ----------------- */}
       <section className="bg-white py-12 border-b border-slate-200">

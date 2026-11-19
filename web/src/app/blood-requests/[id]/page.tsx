@@ -249,7 +249,7 @@ export default function BloodRequestDetailPage() {
               hospitalLng={request.hospitalLng}
               hospitalName={request.hospitalName}
               radiusKm={5.0}
-              donors={rankedDonors}
+              donors={rankedDonors.map((d) => ({ ...d, id: d.donorId }))}
             />
           </div>
 

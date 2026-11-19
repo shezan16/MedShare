@@ -53,3 +53,86 @@ body {
 .animate-emergency {
   animation: emergency-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   HERO SECTION — Dark Futuristic Medical AI Aesthetic
+   ═══════════════════════════════════════════════════════════ */
+
+/* Base background */
+.hero-section {
+  background-color: #060b14;
+}
+
+/* Radial vignette: darkens edges, keeps center readable */
+.hero-vignette {
+  background: radial-gradient(
+    ellipse 70% 60% at 50% 50%,
+    transparent 0%,
+    rgba(6, 11, 20, 0.45) 55%,
+    rgba(6, 11, 20, 0.85) 100%
+  );
+}
+
+/* Frosted glass pill / container */
+.hero-glass-pill {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Gradient text: blue → crimson for "Lifesaving" */
+.hero-gradient-text {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 40%, #dc2626 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* CTA frosted glass buttons */
+.hero-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hero-cta-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 0 20px rgba(56, 189, 248, 0.08),
+    0 4px 12px rgba(0, 0, 0, 0.3);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.hero-cta-btn:active {
+  transform: scale(0.97);
+}
+
+/* Emergency button variant */
+.hero-cta-emergency {
+  background: rgba(220, 38, 38, 0.2);
+  border-color: rgba(220, 38, 38, 0.35);
+  color: #fca5a5;
+}
+
+.hero-cta-emergency:hover {
+  background: rgba(220, 38, 38, 0.35);
+  border-color: rgba(220, 38, 38, 0.5);
+  box-shadow:
+    0 0 24px rgba(220, 38, 38, 0.15),
+    0 4px 12px rgba(0, 0, 0, 0.3);
+  color: #fff;
+}
