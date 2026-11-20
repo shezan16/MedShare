@@ -24,10 +24,6 @@ export default function LoginPage() {
       if (ok) {
         if (email.includes('admin')) {
           router.push('/admin/dashboard');
-        } else if (email.includes('donor')) {
-          router.push('/donor/dashboard');
-        } else if (email.includes('pharmacy')) {
-          router.push('/pharmacy/dashboard');
         } else {
           router.push('/dashboard');
         }

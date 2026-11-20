@@ -30,6 +30,16 @@ export interface AuthenticatedUser {
   isVerified: boolean;
   donorId?: string;
   pharmacyId?: string;
+  fullName?: string | null;
+  phone?: string | null;
+  bloodGroup?: BloodGroup | null;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  isAvailable?: boolean;
+  lastDonationDate?: Date | string | null;
+  organizationName?: string | null;
+  licenseNumber?: string | null;
 }
 
 export interface DonorCandidate {

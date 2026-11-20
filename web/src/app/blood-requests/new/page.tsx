@@ -28,6 +28,17 @@ export default function NewBloodRequestPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Pre-fill fields from unified user profile
+  React.useEffect(() => {
+    if (user) {
+      if (user.fullName && !contactPerson) setContactPerson(user.fullName);
+      if (user.phone && !contactPhone) setContactPhone(user.phone);
+      if (user.bloodGroup) setBloodGroup(user.bloodGroup);
+      if (user.latitude && user.latitude !== 40.7128) setHospitalLat(user.latitude);
+      if (user.longitude && user.longitude !== -74.006) setHospitalLng(user.longitude);
+    }
+  }, [user]);
+
   const handleUseCurrentLocation = () => {
     if (typeof window !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(

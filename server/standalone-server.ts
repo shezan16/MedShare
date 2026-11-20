@@ -590,49 +590,64 @@ const server = http.createServer(async (req, res) => {
       return sendJSON(res, 409, { success: false, error: { message: 'Email already registered.' } });
     }
 
+    const orgName = data.organizationName?.trim() || `${data.fullName || 'User'}'s Pharmacy`;
+    const licNum = data.licenseNumber?.trim() || `LIC-${Date.now().toString().slice(-6)}`;
+
     const newUser = {
       id: `usr-${Date.now()}`,
       email: data.email.toLowerCase(),
       passwordHash: hashPassword(data.password || 'MedShare123!'),
       role: data.role || 'PATIENT',
-      isVerified: data.role === 'ADMIN',
+      fullName: data.fullName || 'Registered User',
+      phone: data.phone || '+1 (555) 000-0000',
+      bloodGroup: data.bloodGroup || 'O_POS',
+      address: data.address || 'New York, NY',
+      latitude: Number(data.latitude) || 40.7128,
+      longitude: Number(data.longitude) || -74.006,
+      isAvailable: data.isAvailable !== undefined ? Boolean(data.isAvailable) : true,
+      lastDonationDate: data.lastDonationDate || null,
+      organizationName: orgName,
+      licenseNumber: licNum,
+      isVerified: true,
       createdAt: new Date().toISOString(),
     };
     db.users.push(newUser);
 
-    if (data.role === 'DONOR') {
-      db.donors.push({
-        id: `dnr-${Date.now()}`,
-        userId: newUser.id,
-        fullName: data.fullName || 'Registered Donor',
-        phone: data.phone || '+1 (555) 000-0000',
-        bloodGroup: data.bloodGroup || 'O_POS',
-        latitude: data.latitude || 40.7128,
-        longitude: data.longitude || -74.006,
-        isAvailable: true,
-        verificationStatus: 'PENDING',
-        preferredRadiusKm: data.preferredRadiusKm || 5,
-        donationCount: 0,
-        responseRate: 100,
-        lastDonationDate: null,
-      });
-    } else if (data.role === 'PHARMACY') {
-      db.pharmacies.push({
-        id: `ph-${Date.now()}`,
-        userId: newUser.id,
-        organizationName: data.organizationName || 'New Pharmacy',
-        licenseNumber: data.licenseNumber || 'PENDING-LIC',
-        address: data.address || 'Address pending',
-        phone: data.phone || '+1 (212) 555-0000',
-        email: data.email.toLowerCase(),
-        isVerified: false,
-        verificationStatus: 'PENDING',
-      });
-    }
+    const newDonor = {
+      id: `dnr-${Date.now()}`,
+      userId: newUser.id,
+      fullName: newUser.fullName,
+      phone: newUser.phone,
+      bloodGroup: newUser.bloodGroup,
+      latitude: newUser.latitude,
+      longitude: newUser.longitude,
+      isAvailable: newUser.isAvailable,
+      verificationStatus: 'VERIFIED',
+      preferredRadiusKm: data.preferredRadiusKm || 5,
+      donationCount: 0,
+      responseRate: 100,
+      lastDonationDate: newUser.lastDonationDate,
+    };
+    db.donors.push(newDonor);
+
+    const newPharmacy = {
+      id: `ph-${Date.now()}`,
+      userId: newUser.id,
+      organizationName: orgName,
+      licenseNumber: licNum,
+      address: newUser.address,
+      latitude: newUser.latitude,
+      longitude: newUser.longitude,
+      phone: newUser.phone,
+      email: newUser.email,
+      isVerified: true,
+      verificationStatus: 'VERIFIED',
+    };
+    db.pharmacies.push(newPharmacy);
 
     saveDB();
-    const token = createJWT({ id: newUser.id, email: newUser.email, role: newUser.role });
-    return sendJSON(res, 201, { success: true, data: { token, user: newUser } });
+    const token = createJWT({ id: newUser.id, email: newUser.email, role: newUser.role, donorId: newDonor.id, pharmacyId: newPharmacy.id });
+    return sendJSON(res, 201, { success: true, data: { token, user: { ...newUser, donor: newDonor, pharmacy: newPharmacy } } });
   }
 
   // POST /api/v1/auth/login
@@ -646,7 +661,7 @@ const server = http.createServer(async (req, res) => {
 
     const donor = db.donors.find((d) => d.userId === user.id);
     const pharmacy = db.pharmacies.find((p) => p.userId === user.id);
-    const token = createJWT({ id: user.id, email: user.email, role: user.role });
+    const token = createJWT({ id: user.id, email: user.email, role: user.role, donorId: donor?.id, pharmacyId: pharmacy?.id });
 
     return sendJSON(res, 200, {
       success: true,
@@ -657,6 +672,16 @@ const server = http.createServer(async (req, res) => {
           email: user.email,
           role: user.role,
           isVerified: user.isVerified,
+          fullName: user.fullName || donor?.fullName,
+          phone: user.phone || donor?.phone || pharmacy?.phone,
+          bloodGroup: user.bloodGroup || donor?.bloodGroup,
+          address: user.address || donor?.address || pharmacy?.address,
+          latitude: user.latitude ?? donor?.latitude ?? pharmacy?.latitude,
+          longitude: user.longitude ?? donor?.longitude ?? pharmacy?.longitude,
+          isAvailable: user.isAvailable ?? donor?.isAvailable ?? true,
+          lastDonationDate: user.lastDonationDate || donor?.lastDonationDate,
+          organizationName: user.organizationName || pharmacy?.organizationName,
+          licenseNumber: user.licenseNumber || pharmacy?.licenseNumber,
           donor,
           pharmacy,
         },

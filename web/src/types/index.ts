@@ -23,6 +23,16 @@ export interface User {
   role: UserRole;
   isVerified: boolean;
   profileImage?: string;
+  fullName?: string;
+  phone?: string;
+  bloodGroup?: BloodGroup;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  isAvailable?: boolean;
+  lastDonationDate?: string | null;
+  organizationName?: string;
+  licenseNumber?: string;
   donor?: {
     id: string;
     fullName: string;
@@ -138,6 +148,7 @@ export interface MedicineRequest {
   pharmacyNotes?: string;
   createdAt: string;
   medicine?: Medicine;
+  requester?: { id: string; email: string };
 }
 
 export interface NotificationItem {

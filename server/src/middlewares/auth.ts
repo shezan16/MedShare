@@ -47,6 +47,16 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       isVerified: user.isVerified,
       donorId: user.donor?.id,
       pharmacyId: user.pharmacy?.id,
+      fullName: user.fullName,
+      phone: user.phone,
+      bloodGroup: user.bloodGroup,
+      address: user.address,
+      latitude: user.latitude,
+      longitude: user.longitude,
+      isAvailable: user.isAvailable,
+      lastDonationDate: user.lastDonationDate,
+      organizationName: user.organizationName,
+      licenseNumber: user.licenseNumber,
     };
 
     next();
@@ -67,15 +77,29 @@ export function requireRole(...allowedRoles: UserRole[]) {
       });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        error: {
-          message: `Access denied. Requires one of [${allowedRoles.join(', ')}] roles. Your role is ${req.user.role}.`,
-        },
-      });
+    // Admin users always have access
+    if (req.user.role === 'ADMIN') {
+      return next();
     }
 
-    next();
+    // Direct role match
+    if (allowedRoles.includes(req.user.role)) {
+      return next();
+    }
+
+    // Unified account model: All non-admin capabilities (Patient, Blood Donor, Pharmacy)
+    // are granted to any authenticated user with a unified profile
+    const platformFeatureRoles: UserRole[] = ['PATIENT', 'DONOR', 'PHARMACY'];
+    const allowsPlatformFeature = allowedRoles.some((r) => platformFeatureRoles.includes(r));
+    if (allowsPlatformFeature) {
+      return next();
+    }
+
+    return res.status(403).json({
+      success: false,
+      error: {
+        message: `Access denied. Requires one of [${allowedRoles.join(', ')}] roles. Your role is ${req.user.role}.`,
+      },
+    });
   };
 }

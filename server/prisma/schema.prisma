@@ -82,22 +82,32 @@ enum ReportStatus {
 }
 
 model User {
-  id              String           @id @default(uuid())
-  email           String           @unique
-  passwordHash    String
-  role            Role             @default(PATIENT)
-  isVerified      Boolean          @default(false)
-  profileImage    String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id               String            @id @default(uuid())
+  email            String            @unique
+  passwordHash     String
+  role             Role              @default(PATIENT)
+  fullName         String?
+  phone            String?
+  bloodGroup       BloodGroup?       @default(O_POS)
+  address          String?
+  latitude         Float?            @default(40.7128)
+  longitude        Float?            @default(-74.006)
+  isAvailable      Boolean           @default(true)
+  lastDonationDate DateTime?
+  organizationName String?
+  licenseNumber    String?
+  isVerified       Boolean           @default(false)
+  profileImage     String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
-  donor           Donor?
-  pharmacy        Pharmacy?
-  bloodRequests   BloodRequest[]
+  donor            Donor?
+  pharmacy         Pharmacy?
+  bloodRequests    BloodRequest[]
   medicineRequests MedicineRequest[]
-  notifications   Notification[]
-  reportsSubmitted UserReport[]     @relation("Reporter")
-  auditLogs       AuditLog[]
+  notifications    Notification[]
+  reportsSubmitted UserReport[]      @relation("Reporter")
+  auditLogs        AuditLog[]
 
   @@index([email])
   @@index([role])

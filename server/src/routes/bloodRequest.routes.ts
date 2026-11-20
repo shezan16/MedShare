@@ -321,9 +321,29 @@ router.post('/:id/respond', authenticate, async (req: AuthRequest, res: Response
       })
       .parse(req.body);
 
-    const donor = await prisma.donor.findUnique({
+    let donor = await prisma.donor.findUnique({
       where: { userId: req.user!.id },
     });
+
+    if (!donor) {
+      const u = await prisma.user.findUnique({ where: { id: req.user!.id } });
+      if (u) {
+        donor = await prisma.donor.create({
+          data: {
+            userId: u.id,
+            fullName: u.fullName || 'Unified Donor',
+            phone: u.phone || '+1 (555) 000-0000',
+            bloodGroup: u.bloodGroup || 'O_POS',
+            address: u.address || 'New York, NY',
+            latitude: u.latitude ?? 40.7128,
+            longitude: u.longitude ?? -74.006,
+            isAvailable: u.isAvailable ?? true,
+            lastDonationDate: u.lastDonationDate,
+            verificationStatus: 'VERIFIED',
+          },
+        });
+      }
+    }
 
     if (!donor) {
       return res.status(403).json({

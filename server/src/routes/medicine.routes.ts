@@ -107,13 +107,26 @@ router.post('/', authenticate, requireRole('PHARMACY', 'ADMIN'), async (req: Aut
 
     let pharmacyId = req.user!.pharmacyId;
     if (!pharmacyId) {
-      // Find pharmacy for user
-      const ph = await prisma.pharmacy.findUnique({ where: { userId: req.user!.id } });
-      if (!ph && req.user!.role !== 'ADMIN') {
-        return res.status(403).json({
-          success: false,
-          error: { message: 'Must be associated with a registered pharmacy.' },
-        });
+      let ph = await prisma.pharmacy.findUnique({ where: { userId: req.user!.id } });
+      if (!ph) {
+        // Auto-create pharmacy record for unified user using their unified profile details
+        const u = await prisma.user.findUnique({ where: { id: req.user!.id } });
+        if (u) {
+          ph = await prisma.pharmacy.create({
+            data: {
+              userId: u.id,
+              organizationName: u.organizationName || `${u.fullName || 'User'}'s Pharmacy`,
+              licenseNumber: u.licenseNumber || `LIC-${Date.now().toString().slice(-6)}`,
+              address: u.address || 'New York, NY',
+              latitude: u.latitude ?? 40.7128,
+              longitude: u.longitude ?? -74.006,
+              phone: u.phone || '+1 (555) 000-0000',
+              email: u.email,
+              isVerified: true,
+              verificationStatus: 'VERIFIED',
+            },
+          });
+        }
       }
       pharmacyId = ph?.id;
     }
@@ -383,17 +396,7 @@ router.post('/requests', authenticate, async (req: AuthRequest, res: Response, n
 router.get('/requests/list', authenticate, async (req: AuthRequest, res: Response, next) => {
   try {
     let requests;
-    if (req.user!.role === 'PHARMACY') {
-      const ph = await prisma.pharmacy.findUnique({ where: { userId: req.user!.id } });
-      requests = await prisma.medicineRequest.findMany({
-        where: { medicine: { pharmacyId: ph?.id } },
-        include: {
-          requester: { select: { id: true, email: true } },
-          medicine: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-    } else if (req.user!.role === 'ADMIN') {
+    if (req.user!.role === 'ADMIN') {
       requests = await prisma.medicineRequest.findMany({
         include: {
           requester: { select: { id: true, email: true } },
@@ -402,10 +405,19 @@ router.get('/requests/list', authenticate, async (req: AuthRequest, res: Respons
         orderBy: { createdAt: 'desc' },
       });
     } else {
-      // Patient's own requests
+      // Unified account model: Retrieve assistance requests targeting user's pharmacy OR submitted by user
+      const ph = await prisma.pharmacy.findUnique({ where: { userId: req.user!.id } });
       requests = await prisma.medicineRequest.findMany({
-        where: { requesterId: req.user!.id },
+        where: ph
+          ? {
+              OR: [
+                { requesterId: req.user!.id },
+                { medicine: { pharmacyId: ph.id } },
+              ],
+            }
+          : { requesterId: req.user!.id },
         include: {
+          requester: { select: { id: true, email: true } },
           medicine: { include: { pharmacy: true } },
         },
         orderBy: { createdAt: 'desc' },

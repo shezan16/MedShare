@@ -69,40 +69,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Login error:', err);
       // Fallback demo mock logins if server is unreachable
       if (email.includes('admin')) {
-        const mockAdmin: User = { id: 'demo-admin-1', email, role: 'ADMIN', isVerified: true };
+        const mockAdmin: User = {
+          id: 'demo-admin-1',
+          email,
+          role: 'ADMIN',
+          isVerified: true,
+          fullName: 'MedShare Administrator',
+          phone: '+1 (212) 555-0199',
+          bloodGroup: 'O_NEG',
+          address: 'New York, NY',
+          latitude: 40.7128,
+          longitude: -74.006,
+          isAvailable: true,
+          organizationName: 'MedShare HQ Health Network',
+          licenseNumber: 'DGDA-ADMIN-2026',
+        };
         setUser(mockAdmin);
         setToken('mock-jwt-admin');
         localStorage.setItem('medshare_user', JSON.stringify(mockAdmin));
         localStorage.setItem('medshare_token', 'mock-jwt-admin');
         return true;
-      } else if (email.includes('donor')) {
-        const mockDonor: User = {
-          id: 'demo-donor-1',
+      } else {
+        // Unified account mock fallback
+        const mockUnified: User = {
+          id: 'demo-unified-1',
           email,
-          role: 'DONOR',
+          role: 'PATIENT',
           isVerified: true,
-          donor: { id: 'd-1', fullName: 'Demo Blood Donor', bloodGroup: 'O_NEG', isAvailable: true, verificationStatus: 'VERIFIED' },
+          fullName: email.includes('donor') ? 'Alex Vance' : email.includes('pharmacy') ? 'Metro Community Pharmacy' : 'Robert Martinez',
+          phone: '+1 (555) 234-5678',
+          bloodGroup: 'O_NEG',
+          address: 'New York, NY',
+          latitude: 40.7128,
+          longitude: -74.006,
+          isAvailable: true,
+          organizationName: 'City Health Community Pharmacy',
+          licenseNumber: 'DGDA-NY-PHARM-8821',
+          donor: {
+            id: 'd-1',
+            fullName: 'Alex Vance',
+            bloodGroup: 'O_NEG',
+            isAvailable: true,
+            verificationStatus: 'VERIFIED',
+          },
+          pharmacy: {
+            id: 'ph-1',
+            organizationName: 'City Health Community Pharmacy',
+            licenseNumber: 'DGDA-NY-PHARM-8821',
+            verificationStatus: 'VERIFIED',
+          },
         };
-        setUser(mockDonor);
-        setToken('mock-jwt-donor');
-        localStorage.setItem('medshare_user', JSON.stringify(mockDonor));
-        localStorage.setItem('medshare_token', 'mock-jwt-donor');
-        return true;
-      } else if (email.includes('pharmacy')) {
-        const mockPh: User = {
-          id: 'demo-pharmacy-1',
-          email,
-          role: 'PHARMACY',
-          isVerified: true,
-          pharmacy: { id: 'ph-1', organizationName: 'Demo Pharmacy', licenseNumber: 'NY-8821', verificationStatus: 'VERIFIED' },
-        };
-        setUser(mockPh);
-        setToken('mock-jwt-pharmacy');
-        localStorage.setItem('medshare_user', JSON.stringify(mockPh));
-        localStorage.setItem('medshare_token', 'mock-jwt-pharmacy');
+        setUser(mockUnified);
+        setToken('mock-jwt-unified');
+        localStorage.setItem('medshare_user', JSON.stringify(mockUnified));
+        localStorage.setItem('medshare_token', 'mock-jwt-unified');
         return true;
       }
-      throw err;
     }
     return false;
   };
@@ -143,9 +165,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         setUser,
         isAdmin: user?.role === 'ADMIN',
-        isDonor: user?.role === 'DONOR',
-        isPharmacy: user?.role === 'PHARMACY',
-        isPatient: user?.role === 'PATIENT' || !user,
+        isDonor: Boolean(user),
+        isPharmacy: Boolean(user),
+        isPatient: true,
       }}
     >
       {children}

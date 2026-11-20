@@ -15,6 +15,9 @@ import {
   X,
   AlertCircle,
   Activity,
+  Upload,
+  CheckCircle2,
+  LayoutDashboard,
 } from 'lucide-react';
 import { notificationApi } from '@/lib/api';
 
@@ -40,16 +43,8 @@ export default function Navbar() {
 
   const getDashboardUrl = () => {
     if (!user) return '/login';
-    switch (user.role) {
-      case 'ADMIN':
-        return '/admin/dashboard';
-      case 'DONOR':
-        return '/donor/dashboard';
-      case 'PHARMACY':
-        return '/pharmacy/dashboard';
-      default:
-        return '/dashboard';
-    }
+    if (user.role === 'ADMIN') return '/admin/dashboard';
+    return '/dashboard';
   };
 
   return (
@@ -66,55 +61,111 @@ export default function Navbar() {
                 <span className="text-xl font-bold tracking-tight text-slate-900">
                   Med<span className="text-blue-600">Share</span>
                 </span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-red-100 text-red-700">
-                  RapidBlood
+                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
+                  Unified
                 </span>
               </div>
               <p className="text-[10px] text-slate-500 hidden sm:block">
-                Every Drop Matters. Every Medicine Counts.
+                RapidBlood & Medicine Redistribution
               </p>
             </div>
           </Link>
 
           {/* Desktop Nav Links */}
-          <div className="hidden md:flex items-center gap-7">
-            <Link
-              href="/blood-requests/nearby-donors"
-              className={`text-sm font-medium transition-colors hover:text-blue-600 flex items-center gap-1.5 ${
-                pathname.includes('/blood-requests') ? 'text-blue-600 font-semibold' : 'text-slate-600'
-              }`}
-            >
-              <Heart className="w-4 h-4 text-red-500" />
-              RapidBlood
-            </Link>
+          <div className="hidden md:flex items-center gap-5 lg:gap-6">
+            {user ? (
+              <>
+                <Link
+                  href="/dashboard"
+                  className={`text-xs font-semibold transition-colors hover:text-blue-600 flex items-center gap-1.5 ${
+                    pathname === '/dashboard' ? 'text-blue-600 font-bold' : 'text-slate-600'
+                  }`}
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  Dashboard
+                </Link>
 
-            <Link
-              href="/medicines"
-              className={`text-sm font-medium transition-colors hover:text-blue-600 flex items-center gap-1.5 ${
-                pathname.includes('/medicines') ? 'text-blue-600 font-semibold' : 'text-slate-600'
-              }`}
-            >
-              <Pill className="w-4 h-4 text-emerald-500" />
-              MedShare Medicine
-            </Link>
+                <Link
+                  href="/donor/dashboard"
+                  className={`text-xs font-semibold transition-colors hover:text-red-600 flex items-center gap-1.5 ${
+                    pathname.startsWith('/donor') ? 'text-red-600 font-bold' : 'text-slate-600'
+                  }`}
+                >
+                  <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500" />
+                  Donor Hub
+                </Link>
 
-            <Link
-              href="/how-it-works"
-              className={`text-sm font-medium transition-colors hover:text-blue-600 ${
-                pathname === '/how-it-works' ? 'text-blue-600 font-semibold' : 'text-slate-600'
-              }`}
-            >
-              How It Works
-            </Link>
+                <Link
+                  href="/medicines"
+                  className={`text-xs font-semibold transition-colors hover:text-blue-600 flex items-center gap-1.5 ${
+                    pathname === '/medicines' ? 'text-blue-600 font-bold' : 'text-slate-600'
+                  }`}
+                >
+                  <Pill className="w-3.5 h-3.5 text-emerald-500" />
+                  Browse Medicines
+                </Link>
 
-            <Link
-              href="/about"
-              className={`text-sm font-medium transition-colors hover:text-blue-600 ${
-                pathname === '/about' ? 'text-blue-600 font-semibold' : 'text-slate-600'
-              }`}
-            >
-              About
-            </Link>
+                <Link
+                  href="/pharmacy/upload"
+                  className={`text-xs font-semibold transition-colors hover:text-emerald-600 flex items-center gap-1.5 ${
+                    pathname === '/pharmacy/upload' ? 'text-emerald-600 font-bold' : 'text-slate-600'
+                  }`}
+                >
+                  <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                  AI OCR Upload
+                </Link>
+
+                <Link
+                  href="/pharmacy/requests"
+                  className={`text-xs font-semibold transition-colors hover:text-emerald-600 flex items-center gap-1.5 ${
+                    pathname === '/pharmacy/requests' ? 'text-emerald-600 font-bold' : 'text-slate-600'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  Verification
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/blood-requests/nearby-donors"
+                  className={`text-sm font-medium transition-colors hover:text-blue-600 flex items-center gap-1.5 ${
+                    pathname.includes('/blood-requests') ? 'text-blue-600 font-semibold' : 'text-slate-600'
+                  }`}
+                >
+                  <Heart className="w-4 h-4 text-red-500" />
+                  RapidBlood
+                </Link>
+
+                <Link
+                  href="/medicines"
+                  className={`text-sm font-medium transition-colors hover:text-blue-600 flex items-center gap-1.5 ${
+                    pathname.includes('/medicines') ? 'text-blue-600 font-semibold' : 'text-slate-600'
+                  }`}
+                >
+                  <Pill className="w-4 h-4 text-emerald-500" />
+                  MedShare Medicine
+                </Link>
+
+                <Link
+                  href="/how-it-works"
+                  className={`text-sm font-medium transition-colors hover:text-blue-600 ${
+                    pathname === '/how-it-works' ? 'text-blue-600 font-semibold' : 'text-slate-600'
+                  }`}
+                >
+                  How It Works
+                </Link>
+
+                <Link
+                  href="/about"
+                  className={`text-sm font-medium transition-colors hover:text-blue-600 ${
+                    pathname === '/about' ? 'text-blue-600 font-semibold' : 'text-slate-600'
+                  }`}
+                >
+                  About
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Action CTAs */}
@@ -133,6 +184,7 @@ export default function Navbar() {
                 <Link
                   href="/notifications"
                   className="relative p-2 text-slate-500 hover:text-blue-600 rounded-lg hover:bg-slate-100 transition-colors"
+                  title="Notifications"
                 >
                   <Bell className="w-5 h-5" />
                   {unreadCount > 0 && (
@@ -147,9 +199,9 @@ export default function Navbar() {
                   <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[10px]">
                     {user.email.charAt(0).toUpperCase()}
                   </div>
-                  <span className="max-w-[100px] truncate">{user.email.split('@')[0]}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 uppercase font-mono">
-                    {user.role}
+                  <span className="max-w-[110px] truncate">{user.fullName || user.email.split('@')[0]}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 uppercase font-mono font-bold">
+                    {user.role === 'ADMIN' ? 'ADMIN' : 'UNIFIED'}
                   </span>
                 </Link>
 
@@ -204,74 +256,120 @@ export default function Navbar() {
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-white border-b border-slate-200 px-4 pt-3 pb-6 space-y-3">
-          <Link
-            href="/blood-requests/nearby-donors"
-            onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center gap-2 py-2 text-sm font-medium text-slate-800"
-          >
-            <Heart className="w-4 h-4 text-red-500" />
-            RapidBlood Donors
-          </Link>
-          <Link
-            href="/medicines"
-            onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center gap-2 py-2 text-sm font-medium text-slate-800"
-          >
-            <Pill className="w-4 h-4 text-emerald-500" />
-            Medicine Redistribution
-          </Link>
-          <Link
-            href="/how-it-works"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 text-sm font-medium text-slate-800"
-          >
-            How It Works
-          </Link>
-          <Link
-            href="/blood-requests/new"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block w-full py-2.5 text-center text-sm font-semibold text-white bg-red-600 rounded-lg shadow-sm"
-          >
-            Create Emergency Blood Request
-          </Link>
-
           {user ? (
-            <div className="pt-3 border-t border-slate-200 space-y-2">
+            <>
               <Link
-                href={getDashboardUrl()}
+                href="/dashboard"
                 onClick={() => setMobileMenuOpen(false)}
-                className="block py-2 text-sm font-semibold text-blue-600"
+                className="flex items-center gap-2 py-2 text-sm font-semibold text-blue-600"
               >
-                Dashboard ({user.role})
+                <LayoutDashboard className="w-4 h-4" />
+                Unified Dashboard
               </Link>
-              <button
-                onClick={() => {
-                  logout();
-                  setMobileMenuOpen(false);
-                  router.push('/');
-                }}
-                className="block w-full text-left py-2 text-sm font-medium text-red-600"
+              <Link
+                href="/donor/dashboard"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 py-2 text-sm font-medium text-slate-800"
               >
-                Sign Out
-              </button>
-            </div>
+                <Heart className="w-4 h-4 text-red-500" />
+                Donor Hub & Matching
+              </Link>
+              <Link
+                href="/medicines"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 py-2 text-sm font-medium text-slate-800"
+              >
+                <Pill className="w-4 h-4 text-emerald-500" />
+                Browse Medicines
+              </Link>
+              <Link
+                href="/pharmacy/upload"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 py-2 text-sm font-medium text-slate-800"
+              >
+                <Upload className="w-4 h-4 text-emerald-600" />
+                AI OCR Medicine Upload
+              </Link>
+              <Link
+                href="/pharmacy/requests"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 py-2 text-sm font-medium text-slate-800"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                Pharmacist Verification
+              </Link>
+              <Link
+                href="/blood-requests/new"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block w-full py-2.5 text-center text-sm font-semibold text-white bg-red-600 rounded-lg shadow-sm"
+              >
+                Emergency Blood Request
+              </Link>
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-600">
+                  Signed in as <strong>{user.fullName || user.email}</strong>
+                </span>
+                <button
+                  onClick={() => {
+                    logout();
+                    setMobileMenuOpen(false);
+                    router.push('/');
+                  }}
+                  className="text-xs font-semibold text-red-600 hover:underline"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </>
           ) : (
-            <div className="pt-3 border-t border-slate-200 grid grid-cols-2 gap-2">
+            <>
               <Link
-                href="/login"
+                href="/blood-requests/nearby-donors"
                 onClick={() => setMobileMenuOpen(false)}
-                className="py-2 text-center text-sm font-semibold border border-slate-200 rounded-lg"
+                className="flex items-center gap-2 py-2 text-sm font-medium text-slate-800"
               >
-                Sign In
+                <Heart className="w-4 h-4 text-red-500" />
+                RapidBlood Donors
               </Link>
               <Link
-                href="/register"
+                href="/medicines"
                 onClick={() => setMobileMenuOpen(false)}
-                className="py-2 text-center text-sm font-semibold text-white bg-blue-600 rounded-lg"
+                className="flex items-center gap-2 py-2 text-sm font-medium text-slate-800"
               >
-                Register
+                <Pill className="w-4 h-4 text-emerald-500" />
+                Medicine Redistribution
               </Link>
-            </div>
+              <Link
+                href="/how-it-works"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block py-2 text-sm font-medium text-slate-800"
+              >
+                How It Works
+              </Link>
+              <Link
+                href="/blood-requests/new"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block w-full py-2.5 text-center text-sm font-semibold text-white bg-red-600 rounded-lg shadow-sm"
+              >
+                Create Emergency Blood Request
+              </Link>
+              <div className="pt-3 border-t border-slate-200 grid grid-cols-2 gap-2">
+                <Link
+                  href="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="py-2 text-center text-sm font-semibold border border-slate-200 rounded-lg"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/register"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="py-2 text-center text-sm font-semibold text-white bg-blue-600 rounded-lg"
+                >
+                  Register
+                </Link>
+              </div>
+            </>
           )}
         </div>
       )}
