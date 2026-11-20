@@ -8,8 +8,9 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (identifier: string, password: string) => Promise<boolean>;
   register: (data: any) => Promise<boolean>;
+  setAuthSession: (token: string, user: User) => void;
   logout: () => void;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
   isAdmin: boolean;
@@ -54,24 +55,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const setAuthSession = (receivedToken: string, receivedUser: User) => {
+    setToken(receivedToken);
+    setUser(receivedUser);
+    localStorage.setItem('medshare_token', receivedToken);
+    localStorage.setItem('medshare_user', JSON.stringify(receivedUser));
+  };
+
+  const login = async (identifier: string, password: string): Promise<boolean> => {
     try {
-      const res = await authApi.login({ email, password });
+      const res = await authApi.login({ identifier, password });
       if (res.data?.success) {
         const { token: receivedToken, user: receivedUser } = res.data.data;
-        setToken(receivedToken);
-        setUser(receivedUser);
-        localStorage.setItem('medshare_token', receivedToken);
-        localStorage.setItem('medshare_user', JSON.stringify(receivedUser));
+        setAuthSession(receivedToken, receivedUser);
         return true;
       }
     } catch (err: any) {
       console.error('Login error:', err);
       // Fallback demo mock logins if server is unreachable
-      if (email.includes('admin')) {
+      if (identifier.includes('admin')) {
         const mockAdmin: User = {
           id: 'demo-admin-1',
-          email,
+          email: identifier,
           role: 'ADMIN',
           isVerified: true,
           fullName: 'MedShare Administrator',
@@ -84,20 +89,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           organizationName: 'MedShare HQ Health Network',
           licenseNumber: 'DGDA-ADMIN-2026',
         };
-        setUser(mockAdmin);
-        setToken('mock-jwt-admin');
-        localStorage.setItem('medshare_user', JSON.stringify(mockAdmin));
-        localStorage.setItem('medshare_token', 'mock-jwt-admin');
+        setAuthSession('mock-jwt-admin', mockAdmin);
         return true;
       } else {
         // Unified account mock fallback
         const mockUnified: User = {
           id: 'demo-unified-1',
-          email,
+          email: identifier.includes('@') ? identifier : 'user@medshare.org',
+          phone: identifier.includes('@') ? '+1 (555) 234-5678' : identifier,
           role: 'PATIENT',
           isVerified: true,
-          fullName: email.includes('donor') ? 'Alex Vance' : email.includes('pharmacy') ? 'Metro Community Pharmacy' : 'Robert Martinez',
-          phone: '+1 (555) 234-5678',
+          fullName: identifier.includes('donor')
+            ? 'Alex Vance'
+            : identifier.includes('pharmacy')
+            ? 'Metro Community Pharmacy'
+            : 'Robert Martinez',
           bloodGroup: 'O_NEG',
           address: 'New York, NY',
           latitude: 40.7128,
@@ -119,10 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             verificationStatus: 'VERIFIED',
           },
         };
-        setUser(mockUnified);
-        setToken('mock-jwt-unified');
-        localStorage.setItem('medshare_user', JSON.stringify(mockUnified));
-        localStorage.setItem('medshare_token', 'mock-jwt-unified');
+        setAuthSession('mock-jwt-unified', mockUnified);
         return true;
       }
     }
@@ -134,10 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await authApi.register(data);
       if (res.data?.success) {
         const { token: receivedToken, user: receivedUser } = res.data.data;
-        setToken(receivedToken);
-        setUser(receivedUser);
-        localStorage.setItem('medshare_token', receivedToken);
-        localStorage.setItem('medshare_user', JSON.stringify(receivedUser));
+        setAuthSession(receivedToken, receivedUser);
         return true;
       }
     } catch (err) {
@@ -162,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         login,
         register,
+        setAuthSession,
         logout,
         setUser,
         isAdmin: user?.role === 'ADMIN',

@@ -83,11 +83,11 @@ enum ReportStatus {
 
 model User {
   id               String            @id @default(uuid())
-  email            String            @unique
+  email            String?           @unique
+  phone            String?           @unique
   passwordHash     String
   role             Role              @default(PATIENT)
   fullName         String?
-  phone            String?
   bloodGroup       BloodGroup?       @default(O_POS)
   city             String?
   address          String?
@@ -98,6 +98,8 @@ model User {
   organizationName String?
   licenseNumber    String?
   isVerified       Boolean           @default(false)
+  isEmailVerified  Boolean           @default(false)
+  isPhoneVerified  Boolean           @default(false)
   profileImage     String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -111,7 +113,22 @@ model User {
   auditLogs        AuditLog[]
 
   @@index([email])
+  @@index([phone])
   @@index([role])
+}
+
+model OtpVerification {
+  id         String   @id @default(uuid())
+  identifier String
+  codeHash   String
+  type       String   @default("REGISTRATION") // "REGISTRATION" | "PASSWORD_RESET"
+  payload    String?
+  expiresAt  DateTime
+  attempts   Int      @default(0)
+  verified   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([identifier, type])
 }
 
 model Donor {

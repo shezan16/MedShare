@@ -12,7 +12,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:studio": "prisma studio",
-    "test": "node --experimental-strip-types test/run-tests.ts && node --experimental-strip-types test/test-backend-handlers.ts"
+    "test": "node --experimental-strip-types test/run-tests.ts && node --experimental-strip-types test/test-backend-handlers.ts && node --experimental-strip-types test/test-simplified-auth.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

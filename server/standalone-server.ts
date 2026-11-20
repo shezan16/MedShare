@@ -582,12 +582,220 @@ const server = http.createServer(async (req, res) => {
 
   // ================= 1. AUTHENTICATION =================
 
+  // Standalone OTP memory cache
+  const standaloneOtps = (globalThis as any).__standaloneOtps || new Map<string, any>();
+  (globalThis as any).__standaloneOtps = standaloneOtps;
+
+  // POST /api/v1/auth/register-request
+  if (pathname === '/api/v1/auth/register-request' && method === 'POST') {
+    const data = await parseBody(req);
+    const rawId = (data.identifier || '').trim();
+    if (!rawId) {
+      return sendJSON(res, 400, { success: false, error: { message: 'Email or phone number is required.' } });
+    }
+    const isEmail = rawId.includes('@');
+    const normalized = isEmail ? rawId.toLowerCase() : rawId;
+
+    const existing = db.users.find((u) => (isEmail ? u.email?.toLowerCase() === normalized : (u as any).phone === normalized));
+    if (existing) {
+      return sendJSON(res, 409, { success: false, error: { message: 'An account with this contact already exists.' } });
+    }
+
+    if (data.password !== data.confirmPassword) {
+      return sendJSON(res, 400, { success: false, error: { message: 'Passwords do not match.' } });
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    standaloneOtps.set(`${normalized}:REGISTRATION`, {
+      code,
+      payload: {
+        fullName: data.fullName,
+        identifier: normalized,
+        isEmail,
+        email: isEmail ? normalized : null,
+        phone: isEmail ? null : normalized,
+        bloodGroup: data.bloodGroup || 'O_POS',
+        password: data.password,
+      },
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      attempts: 0,
+      createdAt: Date.now(),
+    });
+
+    return sendJSON(res, 200, {
+      success: true,
+      message: `Verification code sent to ${rawId}`,
+      data: {
+        identifier: normalized,
+        destinationType: isEmail ? 'email' : 'phone',
+        resendCooldown: 60,
+        devCode: code,
+      },
+    });
+  }
+
+  // POST /api/v1/auth/verify-otp
+  if (pathname === '/api/v1/auth/verify-otp' && method === 'POST') {
+    const { identifier, otp } = await parseBody(req);
+    const normalized = (identifier || '').trim().toLowerCase();
+    const record = standaloneOtps.get(`${normalized}:REGISTRATION`);
+
+    if (!record || Date.now() > record.expiresAt) {
+      return sendJSON(res, 400, { success: false, error: { message: 'Verification code has expired or was not found.' } });
+    }
+
+    if (record.code !== (otp || '').trim()) {
+      record.attempts += 1;
+      const remaining = Math.max(0, 5 - record.attempts);
+      if (remaining === 0) standaloneOtps.delete(`${normalized}:REGISTRATION`);
+      return sendJSON(res, 400, { success: false, error: { message: `Incorrect code. ${remaining} attempts remaining.` } });
+    }
+
+    const payload = record.payload;
+    standaloneOtps.delete(`${normalized}:REGISTRATION`);
+
+    const orgName = `${payload.fullName}'s Healthcare`;
+    const licNum = `DGDA-${Date.now().toString().slice(-6)}`;
+
+    const newUser = {
+      id: `usr-${Date.now()}`,
+      email: payload.email || `${payload.identifier}@medshare.local`,
+      phone: payload.phone || '+1 (555) 000-0000',
+      passwordHash: hashPassword(payload.password || 'MedShare123!'),
+      role: 'PATIENT',
+      fullName: payload.fullName,
+      bloodGroup: payload.bloodGroup,
+      address: 'New York, NY',
+      latitude: 40.7128,
+      longitude: -74.006,
+      isAvailable: true,
+      organizationName: orgName,
+      licenseNumber: licNum,
+      isVerified: true,
+      createdAt: new Date().toISOString(),
+    };
+    db.users.push(newUser);
+
+    const newDonor = {
+      id: `dnr-${Date.now()}`,
+      userId: newUser.id,
+      fullName: newUser.fullName,
+      phone: newUser.phone,
+      bloodGroup: newUser.bloodGroup,
+      latitude: newUser.latitude,
+      longitude: newUser.longitude,
+      isAvailable: newUser.isAvailable,
+      verificationStatus: 'VERIFIED',
+      preferredRadiusKm: 5,
+      donationCount: 0,
+      responseRate: 100,
+      lastDonationDate: null,
+    };
+    db.donors.push(newDonor);
+
+    const newPharmacy = {
+      id: `ph-${Date.now()}`,
+      userId: newUser.id,
+      organizationName: orgName,
+      licenseNumber: licNum,
+      address: newUser.address,
+      latitude: newUser.latitude,
+      longitude: newUser.longitude,
+      phone: newUser.phone,
+      email: newUser.email,
+      isVerified: true,
+      verificationStatus: 'VERIFIED',
+    };
+    db.pharmacies.push(newPharmacy);
+    saveDB();
+
+    const token = createJWT({ id: newUser.id, email: newUser.email, role: newUser.role, donorId: newDonor.id, pharmacyId: newPharmacy.id });
+    return sendJSON(res, 201, { success: true, data: { token, user: { ...newUser, donor: newDonor, pharmacy: newPharmacy } } });
+  }
+
+  // POST /api/v1/auth/resend-otp
+  if (pathname === '/api/v1/auth/resend-otp' && method === 'POST') {
+    const { identifier, type = 'REGISTRATION' } = await parseBody(req);
+    const normalized = (identifier || '').trim().toLowerCase();
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+    standaloneOtps.set(`${normalized}:${type}`, {
+      code,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      attempts: 0,
+      createdAt: Date.now(),
+    });
+
+    return sendJSON(res, 200, {
+      success: true,
+      message: 'New verification code dispatched.',
+      data: { resendCooldown: 60, devCode: code },
+    });
+  }
+
+  // POST /api/v1/auth/forgot-password
+  if (pathname === '/api/v1/auth/forgot-password' && method === 'POST') {
+    const { identifier } = await parseBody(req);
+    const normalized = (identifier || '').trim().toLowerCase();
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+    standaloneOtps.set(`${normalized}:PASSWORD_RESET`, {
+      code,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      attempts: 0,
+      createdAt: Date.now(),
+    });
+
+    return sendJSON(res, 200, {
+      success: true,
+      message: 'If an account exists, a code was sent.',
+      data: { resendCooldown: 60, devCode: code },
+    });
+  }
+
+  // POST /api/v1/auth/verify-reset-otp
+  if (pathname === '/api/v1/auth/verify-reset-otp' && method === 'POST') {
+    const { identifier, otp } = await parseBody(req);
+    const normalized = (identifier || '').trim().toLowerCase();
+    const record = standaloneOtps.get(`${normalized}:PASSWORD_RESET`);
+
+    if (!record || record.code !== (otp || '').trim()) {
+      return sendJSON(res, 400, { success: false, error: { message: 'Invalid or expired verification code.' } });
+    }
+
+    return sendJSON(res, 200, { success: true, data: { verified: true, message: 'Code confirmed.' } });
+  }
+
+  // POST /api/v1/auth/reset-password
+  if (pathname === '/api/v1/auth/reset-password' && method === 'POST') {
+    const { identifier, otp, newPassword, confirmPassword } = await parseBody(req);
+    if (newPassword !== confirmPassword) {
+      return sendJSON(res, 400, { success: false, error: { message: 'Passwords do not match.' } });
+    }
+
+    const normalized = (identifier || '').trim().toLowerCase();
+    const record = standaloneOtps.get(`${normalized}:PASSWORD_RESET`);
+    if (!record || record.code !== (otp || '').trim()) {
+      return sendJSON(res, 400, { success: false, error: { message: 'Invalid or expired verification code.' } });
+    }
+
+    standaloneOtps.delete(`${normalized}:PASSWORD_RESET`);
+    const user = db.users.find((u) => u.email.toLowerCase() === normalized || (u as any).phone === normalized);
+    if (user) {
+      user.passwordHash = hashPassword(newPassword);
+      saveDB();
+    }
+
+    return sendJSON(res, 200, { success: true, message: 'Password reset successfully.' });
+  }
+
   // POST /api/v1/auth/register
   if (pathname === '/api/v1/auth/register' && method === 'POST') {
     const data = await parseBody(req);
-    const existing = db.users.find((u) => u.email.toLowerCase() === data.email?.toLowerCase());
+    const email = data.email?.toLowerCase();
+    const existing = db.users.find((u) => u.email.toLowerCase() === email || ((u as any).phone && (u as any).phone === data.phone));
     if (existing) {
-      return sendJSON(res, 409, { success: false, error: { message: 'Email already registered.' } });
+      return sendJSON(res, 409, { success: false, error: { message: 'Email or phone already registered.' } });
     }
 
     const orgName = data.organizationName?.trim() || `${data.fullName || 'User'}'s Pharmacy`;
@@ -595,7 +803,7 @@ const server = http.createServer(async (req, res) => {
 
     const newUser = {
       id: `usr-${Date.now()}`,
-      email: data.email.toLowerCase(),
+      email: data.email?.toLowerCase() || `${data.phone}@medshare.local`,
       passwordHash: hashPassword(data.password || 'MedShare123!'),
       role: data.role || 'PATIENT',
       fullName: data.fullName || 'Registered User',
@@ -652,11 +860,22 @@ const server = http.createServer(async (req, res) => {
 
   // POST /api/v1/auth/login
   if (pathname === '/api/v1/auth/login' && method === 'POST') {
-    const { email, password } = await parseBody(req);
-    const user = db.users.find((u) => u.email.toLowerCase() === email?.toLowerCase());
+    const body = await parseBody(req);
+    const identifier = (body.identifier || body.email || body.phone || '').trim();
+    const password = body.password || '';
 
-    if (!user || !verifyPassword(password || '', user.passwordHash)) {
-      return sendJSON(res, 401, { success: false, error: { message: 'Invalid email or password.' } });
+    const isEmail = identifier.includes('@');
+    const normalized = isEmail ? identifier.toLowerCase() : identifier;
+
+    const user = db.users.find((u) => {
+      if (isEmail && u.email && u.email.toLowerCase() === normalized) return true;
+      if (!isEmail && (u as any).phone && (u as any).phone === normalized) return true;
+      if (u.email && u.email.toLowerCase() === normalized) return true;
+      return false;
+    });
+
+    if (!user || !verifyPassword(password, user.passwordHash)) {
+      return sendJSON(res, 401, { success: false, error: { message: 'Invalid email/phone or password.' } });
     }
 
     const donor = db.donors.find((d) => d.userId === user.id);
@@ -670,10 +889,10 @@ const server = http.createServer(async (req, res) => {
         user: {
           id: user.id,
           email: user.email,
+          phone: (user as any).phone || donor?.phone || pharmacy?.phone,
           role: user.role,
           isVerified: user.isVerified,
           fullName: user.fullName || donor?.fullName,
-          phone: user.phone || donor?.phone || pharmacy?.phone,
           bloodGroup: user.bloodGroup || donor?.bloodGroup,
           address: user.address || donor?.address || pharmacy?.address,
           latitude: user.latitude ?? donor?.latitude ?? pharmacy?.latitude,

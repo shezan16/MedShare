@@ -19,12 +19,14 @@ export type VerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
 
 export interface User {
   id: string;
-  email: string;
+  email?: string | null;
+  phone?: string | null;
   role: UserRole;
   isVerified: boolean;
+  isEmailVerified?: boolean;
+  isPhoneVerified?: boolean;
   profileImage?: string;
   fullName?: string;
-  phone?: string;
   bloodGroup?: BloodGroup;
   city?: string;
   address?: string;

@@ -197,9 +197,11 @@ export default function Navbar() {
                   className="flex items-center gap-2 py-1.5 px-3 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all text-xs font-semibold text-slate-800"
                 >
                   <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[10px]">
-                    {user.email.charAt(0).toUpperCase()}
+                    {(user.fullName?.charAt(0) || user.email?.charAt(0) || user.phone?.charAt(0) || 'U').toUpperCase()}
                   </div>
-                  <span className="max-w-[110px] truncate">{user.fullName || user.email.split('@')[0]}</span>
+                  <span className="max-w-[110px] truncate">
+                    {user.fullName || user.email?.split('@')[0] || user.phone || 'Account'}
+                  </span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 uppercase font-mono font-bold">
                     {user.role === 'ADMIN' ? 'ADMIN' : 'UNIFIED'}
                   </span>
@@ -307,7 +309,7 @@ export default function Navbar() {
               </Link>
               <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-600">
-                  Signed in as <strong>{user.fullName || user.email}</strong>
+                  Signed in as <strong>{user.fullName || user.email || user.phone}</strong>
                 </span>
                 <button
                   onClick={() => {

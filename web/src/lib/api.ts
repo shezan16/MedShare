@@ -23,7 +23,29 @@ apiClient.interceptors.request.use((config) => {
 
 export const authApi = {
   register: (data: any) => apiClient.post('/auth/register', data),
-  login: (data: any) => apiClient.post('/auth/login', data),
+  registerRequest: (data: {
+    fullName: string;
+    identifier: string;
+    bloodGroup: string;
+    password: string;
+    confirmPassword: string;
+  }) => apiClient.post('/auth/register-request', data),
+  verifyOtp: (data: { identifier: string; otp: string }) =>
+    apiClient.post('/auth/verify-otp', data),
+  resendOtp: (data: { identifier: string; type?: string }) =>
+    apiClient.post('/auth/resend-otp', data),
+  forgotPassword: (data: { identifier: string }) =>
+    apiClient.post('/auth/forgot-password', data),
+  verifyResetOtp: (data: { identifier: string; otp: string }) =>
+    apiClient.post('/auth/verify-reset-otp', data),
+  resetPassword: (data: {
+    identifier: string;
+    otp: string;
+    newPassword: string;
+    confirmPassword: string;
+  }) => apiClient.post('/auth/reset-password', data),
+  login: (data: { identifier?: string; email?: string; phone?: string; password: string }) =>
+    apiClient.post('/auth/login', data),
   logout: () => apiClient.post('/auth/logout'),
   me: () => apiClient.get('/auth/me'),
   updateProfile: (data: any) => apiClient.put('/auth/profile', data),

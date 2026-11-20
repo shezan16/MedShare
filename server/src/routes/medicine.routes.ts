@@ -121,7 +121,7 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next) => 
               latitude: u.latitude ?? 40.7128,
               longitude: u.longitude ?? -74.006,
               phone: u.phone || '+1 (555) 000-0000',
-              email: u.email,
+              email: u.email || `${u.id}@medshare.local`,
               isVerified: false,
               verificationStatus: 'PENDING',
             },

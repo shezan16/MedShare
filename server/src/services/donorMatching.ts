@@ -59,7 +59,7 @@ export function checkDonationEligibility(lastDonationDate?: Date | null): {
 
   const today = new Date();
   const diffTime = Math.abs(today.getTime() - new Date(lastDonationDate).getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
   const COOLDOWN_DAYS = 90;
 
   if (diffDays < COOLDOWN_DAYS) {

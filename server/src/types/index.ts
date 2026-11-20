@@ -25,9 +25,11 @@ export type NotificationType = 'EMERGENCY_BLOOD' | 'DONOR_ACCEPT' | 'MEDICINE_UP
 
 export interface AuthenticatedUser {
   id: string;
-  email: string;
+  email?: string | null;
   role: UserRole;
   isVerified: boolean;
+  isEmailVerified?: boolean;
+  isPhoneVerified?: boolean;
   donorId?: string;
   pharmacyId?: string;
   fullName?: string | null;
