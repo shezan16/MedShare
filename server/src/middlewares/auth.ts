@@ -20,16 +20,25 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
 
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, ENV.JWT_SECRET) as {
-      id: string;
-      email: string;
-      role: UserRole;
+      id?: string;
+      sub?: string;
+      email?: string;
+      role?: UserRole;
     };
 
+    const targetId = decoded.id || decoded.sub;
+    if (!targetId) {
+      return res.status(401).json({
+        success: false,
+        error: { message: 'Invalid token payload.' },
+      });
+    }
+
     const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
+      where: { id: targetId },
       include: {
-        donor: { select: { id: true, verificationStatus: true } },
-        pharmacy: { select: { id: true, verificationStatus: true } },
+        donor: { select: { id: true, verificationStatus: true, isAvailable: true } },
+        pharmacy: { select: { id: true, verificationStatus: true, isVerified: true } },
       },
     });
 
@@ -50,6 +59,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       fullName: user.fullName,
       phone: user.phone,
       bloodGroup: user.bloodGroup,
+      city: user.city,
       address: user.address,
       latitude: user.latitude,
       longitude: user.longitude,

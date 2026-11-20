@@ -88,8 +88,8 @@ router.post('/scan', upload.single('image'), async (req, res, next) => {
 });
 
 // POST /api/v1/medicines
-// Upload/Add medicine to inventory (Pharmacist or Admin)
-router.post('/', authenticate, requireRole('PHARMACY', 'ADMIN'), async (req: AuthRequest, res: Response, next) => {
+// Upload/Add medicine to inventory (All authenticated unified users can submit for verification)
+router.post('/', authenticate, async (req: AuthRequest, res: Response, next) => {
   try {
     const data = createMedicineSchema.parse(req.body);
 
@@ -122,8 +122,8 @@ router.post('/', authenticate, requireRole('PHARMACY', 'ADMIN'), async (req: Aut
               longitude: u.longitude ?? -74.006,
               phone: u.phone || '+1 (555) 000-0000',
               email: u.email,
-              isVerified: true,
-              verificationStatus: 'VERIFIED',
+              isVerified: false,
+              verificationStatus: 'PENDING',
             },
           });
         }
@@ -275,7 +275,7 @@ router.get('/:id', async (req, res, next) => {
 
 // POST /api/v1/medicines/:id/verify
 // Pharmacist or Admin verifies medicine safety & authenticity
-router.post('/:id/verify', authenticate, requireRole('PHARMACY', 'ADMIN'), async (req: AuthRequest, res: Response, next) => {
+router.post('/:id/verify', authenticate, async (req: AuthRequest, res: Response, next) => {
   try {
     const { status, notes } = z
       .object({
@@ -283,6 +283,44 @@ router.post('/:id/verify', authenticate, requireRole('PHARMACY', 'ADMIN'), async
         notes: z.string().optional(),
       })
       .parse(req.body);
+
+    const medicine = await prisma.medicine.findUnique({
+      where: { id: req.params.id },
+      include: { pharmacy: true },
+    });
+
+    if (!medicine) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Medicine listing not found.' },
+      });
+    }
+
+    // Official verification requires verified institutional pharmacy credentials or Admin authority
+    const userPharmacy = await prisma.pharmacy.findUnique({ where: { userId: req.user!.id } });
+    const isVerifiedPharmacist =
+      req.user!.role === 'ADMIN' ||
+      req.user!.role === 'PHARMACY' ||
+      (userPharmacy && userPharmacy.isVerified && userPharmacy.verificationStatus === 'VERIFIED');
+
+    if (!isVerifiedPharmacist) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          message: 'Official pharmacist verification requires an active, verified institutional pharmacy credential or administrative authority.',
+        },
+      });
+    }
+
+    // Anti-Self-Approval: Users cannot approve their own medicine listings
+    if (medicine.pharmacy?.userId === req.user!.id && req.user!.role !== 'ADMIN') {
+      return res.status(403).json({
+        success: false,
+        error: {
+          message: 'Conflict of interest: You are legally prohibited from approving your own submitted medicine listings.',
+        },
+      });
+    }
 
     const updated = await prisma.$transaction(async (tx) => {
       const med = await tx.medicine.update({
@@ -300,6 +338,16 @@ router.post('/:id/verify', authenticate, requireRole('PHARMACY', 'ADMIN'), async
           status,
           notes,
           verifiedAt: new Date(),
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: 'VERIFY_MEDICINE',
+          entity: 'Medicine',
+          entityId: med.id,
+          details: JSON.stringify({ status, notes, verifiedBy: req.user!.email }),
         },
       });
 

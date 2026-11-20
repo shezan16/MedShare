@@ -33,11 +33,35 @@ const registerSchema = z.object({
 
   organizationName: z.string().optional(),
   licenseNumber: z.string().optional(),
+  city: z.string().optional(),
   address: z.string().optional().default('New York, NY'),
   latitude: z.number().optional().default(40.7128),
   longitude: z.number().optional().default(-74.006),
   isAvailable: z.boolean().optional().default(true),
   lastDonationDate: z.string().optional().nullable(),
+});
+
+const profileUpdateSchema = z.object({
+  fullName: z.string().min(1).optional(),
+  phone: z.string().min(1).optional(),
+  bloodGroup: z.enum([
+    'A_POS',
+    'A_NEG',
+    'B_POS',
+    'B_NEG',
+    'AB_POS',
+    'AB_NEG',
+    'O_POS',
+    'O_NEG',
+  ]).optional(),
+  city: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
+  isAvailable: z.boolean().optional(),
+  lastDonationDate: z.string().optional().nullable(),
+  organizationName: z.string().optional().nullable(),
+  licenseNumber: z.string().optional().nullable(),
 });
 
 const loginSchema = z.object({
@@ -58,6 +82,7 @@ const generateToken = (user: {
 }): string => {
   return jwt.sign(
     {
+      sub: user.id,
       id: user.id,
       email: user.email,
       role: user.role,
@@ -82,7 +107,7 @@ router.post('/register', async (req, res, next) => {
 
     const existing = await prisma.user.findUnique({
       where: {
-        email: data.email.toLowerCase(),
+        email: data.email.toLowerCase().trim(),
       },
     });
 
@@ -95,6 +120,19 @@ router.post('/register', async (req, res, next) => {
       });
     }
 
+    // Validate lastDonationDate is not in the future
+    let parsedDonationDate: Date | null = null;
+    if (data.lastDonationDate) {
+      const d = new Date(data.lastDonationDate);
+      if (d > new Date()) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Last donation date cannot be in the future.' },
+        });
+      }
+      parsedDonationDate = d;
+    }
+
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(data.password, salt);
 
@@ -102,16 +140,16 @@ router.post('/register', async (req, res, next) => {
     const newUser = await prisma.$transaction(async (tx) => {
       const orgName = data.organizationName?.trim() || `${data.fullName}'s Pharmacy`;
       const licNum = data.licenseNumber?.trim() || `LIC-${Date.now().toString().slice(-6)}`;
-      const parsedDonationDate = data.lastDonationDate ? new Date(data.lastDonationDate) : null;
 
       const user = await tx.user.create({
         data: {
-          email: data.email.toLowerCase(),
+          email: data.email.toLowerCase().trim(),
           passwordHash,
           role: data.role || 'PATIENT',
           fullName: data.fullName,
           phone: data.phone,
           bloodGroup: data.bloodGroup,
+          city: data.city || null,
           address: data.address || 'New York, NY',
           latitude: data.latitude ?? 40.7128,
           longitude: data.longitude ?? -74.006,
@@ -119,42 +157,44 @@ router.post('/register', async (req, res, next) => {
           lastDonationDate: parsedDonationDate,
           organizationName: orgName,
           licenseNumber: licNum,
-          isVerified: true,
+          isVerified: false,
         },
       });
 
-      // Always create linked Donor Profile for matching & alerts
+      // Create linked Donor Profile
       const donor = await tx.donor.create({
         data: {
           userId: user.id,
           fullName: data.fullName,
           phone: data.phone,
           bloodGroup: data.bloodGroup,
+          city: data.city || null,
           address: data.address || 'New York, NY',
           latitude: data.latitude ?? 40.7128,
           longitude: data.longitude ?? -74.006,
           isAvailable: data.isAvailable ?? true,
           lastDonationDate: parsedDonationDate,
-          verificationStatus: 'VERIFIED',
+          verificationStatus: 'PENDING',
           preferredRadiusKm: 5.0,
           responseRate: 100.0,
           donationCount: 0,
         },
       });
 
-      // Always create linked Pharmacy Profile for medicine redistribution & verification
+      // Create linked Pharmacy Profile (Pending verification until official review)
       const pharmacy = await tx.pharmacy.create({
         data: {
           userId: user.id,
           organizationName: orgName,
           licenseNumber: licNum,
+          city: data.city || null,
           address: data.address || 'New York, NY',
           latitude: data.latitude ?? 40.7128,
           longitude: data.longitude ?? -74.006,
           phone: data.phone,
-          email: data.email.toLowerCase(),
-          isVerified: true,
-          verificationStatus: 'VERIFIED',
+          email: data.email.toLowerCase().trim(),
+          isVerified: false,
+          verificationStatus: 'PENDING',
         },
       });
 
@@ -176,7 +216,7 @@ router.post('/register', async (req, res, next) => {
       };
     });
 
-    // Generate JWT Token with full context
+    // Generate JWT Token with identity claims
     const token = generateToken({
       id: newUser.id,
       email: newUser.email,
@@ -197,6 +237,7 @@ router.post('/register', async (req, res, next) => {
           fullName: newUser.fullName,
           phone: newUser.phone,
           bloodGroup: newUser.bloodGroup,
+          city: newUser.city,
           address: newUser.address,
           latitude: newUser.latitude,
           longitude: newUser.longitude,
@@ -292,6 +333,7 @@ router.post('/login', async (req, res, next) => {
           fullName: user.fullName || user.donor?.fullName,
           phone: user.phone || user.donor?.phone || user.pharmacy?.phone,
           bloodGroup: user.bloodGroup || user.donor?.bloodGroup,
+          city: user.city || user.donor?.city || user.pharmacy?.city,
           address: user.address || user.donor?.address || user.pharmacy?.address,
           latitude: user.latitude ?? user.donor?.latitude ?? user.pharmacy?.latitude,
           longitude: user.longitude ?? user.donor?.longitude ?? user.pharmacy?.longitude,
@@ -305,6 +347,7 @@ router.post('/login', async (req, res, next) => {
                 id: user.donor.id,
                 fullName: user.donor.fullName,
                 bloodGroup: user.donor.bloodGroup,
+                city: user.donor.city,
                 isAvailable: user.donor.isAvailable,
                 verificationStatus:
                   user.donor.verificationStatus,
@@ -318,6 +361,7 @@ router.post('/login', async (req, res, next) => {
                   user.pharmacy.organizationName,
                 licenseNumber:
                   user.pharmacy.licenseNumber,
+                city: user.pharmacy.city,
                 verificationStatus:
                   user.pharmacy.verificationStatus,
               }
@@ -385,6 +429,7 @@ router.get(
           fullName: user.fullName || user.donor?.fullName,
           phone: user.phone || user.donor?.phone || user.pharmacy?.phone,
           bloodGroup: user.bloodGroup || user.donor?.bloodGroup,
+          city: user.city || user.donor?.city || user.pharmacy?.city,
           address: user.address || user.donor?.address || user.pharmacy?.address,
           latitude: user.latitude ?? user.donor?.latitude ?? user.pharmacy?.latitude,
           longitude: user.longitude ?? user.donor?.longitude ?? user.pharmacy?.longitude,
@@ -403,5 +448,131 @@ router.get(
     }
   }
 );
+
+// ===============================
+// UPDATE PROFILE
+// PUT /api/v1/auth/profile
+// ===============================
+
+const updateProfileHandler = async (req: AuthRequest, res: Response, next: any) => {
+  try {
+    const data = profileUpdateSchema.parse(req.body);
+    const userId = req.user!.id;
+
+    // Validate donation date cannot be in future
+    let parsedDonationDate: Date | null | undefined = undefined;
+    if (data.lastDonationDate !== undefined) {
+      if (data.lastDonationDate) {
+        const d = new Date(data.lastDonationDate);
+        if (d > new Date()) {
+          return res.status(400).json({
+            success: false,
+            error: { message: 'Last donation date cannot be in the future.' },
+          });
+        }
+        parsedDonationDate = d;
+      } else {
+        parsedDonationDate = null;
+      }
+    }
+
+    const updatedUser = await prisma.$transaction(async (tx) => {
+      const u = await tx.user.update({
+        where: { id: userId },
+        data: {
+          ...(data.fullName !== undefined ? { fullName: data.fullName } : {}),
+          ...(data.phone !== undefined ? { phone: data.phone } : {}),
+          ...(data.bloodGroup !== undefined ? { bloodGroup: data.bloodGroup } : {}),
+          ...(data.city !== undefined ? { city: data.city } : {}),
+          ...(data.address !== undefined ? { address: data.address } : {}),
+          ...(data.latitude !== undefined && data.latitude !== null ? { latitude: data.latitude } : {}),
+          ...(data.longitude !== undefined && data.longitude !== null ? { longitude: data.longitude } : {}),
+          ...(data.isAvailable !== undefined ? { isAvailable: data.isAvailable } : {}),
+          ...(parsedDonationDate !== undefined ? { lastDonationDate: parsedDonationDate } : {}),
+          ...(data.organizationName !== undefined ? { organizationName: data.organizationName } : {}),
+          ...(data.licenseNumber !== undefined ? { licenseNumber: data.licenseNumber } : {}),
+        },
+      });
+
+      // Synchronize linked Donor
+      await tx.donor.upsert({
+        where: { userId },
+        update: {
+          ...(data.fullName !== undefined ? { fullName: data.fullName } : {}),
+          ...(data.phone !== undefined ? { phone: data.phone } : {}),
+          ...(data.bloodGroup !== undefined ? { bloodGroup: data.bloodGroup } : {}),
+          ...(data.city !== undefined ? { city: data.city } : {}),
+          ...(data.address !== undefined ? { address: data.address } : {}),
+          ...(data.latitude !== undefined && data.latitude !== null ? { latitude: data.latitude } : {}),
+          ...(data.longitude !== undefined && data.longitude !== null ? { longitude: data.longitude } : {}),
+          ...(data.isAvailable !== undefined ? { isAvailable: data.isAvailable } : {}),
+          ...(parsedDonationDate !== undefined ? { lastDonationDate: parsedDonationDate } : {}),
+        },
+        create: {
+          userId,
+          fullName: u.fullName || 'Unified Donor',
+          phone: u.phone || '+1 (555) 000-0000',
+          bloodGroup: u.bloodGroup || 'O_POS',
+          city: u.city,
+          address: u.address || 'New York, NY',
+          latitude: u.latitude ?? 40.7128,
+          longitude: u.longitude ?? -74.006,
+          isAvailable: u.isAvailable,
+          lastDonationDate: u.lastDonationDate,
+          verificationStatus: 'PENDING',
+        },
+      });
+
+      // Synchronize linked Pharmacy if organization details exist
+      const orgName = data.organizationName || u.organizationName;
+      const licNum = data.licenseNumber || u.licenseNumber;
+      if (orgName || licNum) {
+        await tx.pharmacy.upsert({
+          where: { userId },
+          update: {
+            ...(data.organizationName !== undefined && data.organizationName ? { organizationName: data.organizationName } : {}),
+            ...(data.licenseNumber !== undefined && data.licenseNumber ? { licenseNumber: data.licenseNumber } : {}),
+            ...(data.city !== undefined ? { city: data.city } : {}),
+            ...(data.address !== undefined && data.address ? { address: data.address } : {}),
+            ...(data.latitude !== undefined && data.latitude !== null ? { latitude: data.latitude } : {}),
+            ...(data.longitude !== undefined && data.longitude !== null ? { longitude: data.longitude } : {}),
+            ...(data.phone !== undefined ? { phone: data.phone } : {}),
+          },
+          create: {
+            userId,
+            organizationName: orgName || `${u.fullName || 'User'}'s Pharmacy`,
+            licenseNumber: licNum || `LIC-${Date.now().toString().slice(-6)}`,
+            city: u.city,
+            address: u.address || 'New York, NY',
+            latitude: u.latitude ?? 40.7128,
+            longitude: u.longitude ?? -74.006,
+            phone: u.phone || '+1 (555) 000-0000',
+            email: u.email,
+            isVerified: false,
+            verificationStatus: 'PENDING',
+          },
+        });
+      }
+
+      return u;
+    });
+
+    const refreshed = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { donor: true, pharmacy: true },
+    });
+
+    return res.json({
+      success: true,
+      data: refreshed,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+router.put('/profile', authenticate, updateProfileHandler);
+router.patch('/profile', authenticate, updateProfileHandler);
+router.put('/me', authenticate, updateProfileHandler);
 
 export default router;

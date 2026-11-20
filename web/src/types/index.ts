@@ -26,6 +26,7 @@ export interface User {
   fullName?: string;
   phone?: string;
   bloodGroup?: BloodGroup;
+  city?: string;
   address?: string;
   latitude?: number;
   longitude?: number;

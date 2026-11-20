@@ -89,6 +89,7 @@ model User {
   fullName         String?
   phone            String?
   bloodGroup       BloodGroup?       @default(O_POS)
+  city             String?
   address          String?
   latitude         Float?            @default(40.7128)
   longitude        Float?            @default(-74.006)
@@ -122,6 +123,7 @@ model Donor {
   bloodGroup        BloodGroup
   dateOfBirth       DateTime?
   gender            String?
+  city              String?
   address           String?
   latitude          Float
   longitude         Float
@@ -213,6 +215,7 @@ model Pharmacy {
   user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   organizationName   String
   licenseNumber      String             @unique
+  city               String?
   address            String
   latitude           Float
   longitude          Float

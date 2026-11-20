@@ -19,6 +19,8 @@ import {
   ShieldCheck,
   LocateFixed,
   Sparkles,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { BloodGroup } from '@/types';
 
@@ -30,10 +32,12 @@ export default function RegisterPage() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
 
   // Blood Donor & Health Profile
   const [bloodGroup, setBloodGroup] = useState<BloodGroup>('O_POS');
+  const [city, setCity] = useState('New York');
   const [address, setAddress] = useState('New York, NY');
   const [latitude, setLatitude] = useState(40.7128);
   const [longitude, setLongitude] = useState(-74.006);
@@ -45,8 +49,11 @@ export default function RegisterPage() {
   const [organizationName, setOrganizationName] = useState('');
   const [licenseNumber, setLicenseNumber] = useState('');
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const todayStr = new Date().toISOString().split('T')[0];
 
   const handleAutoDetectLocation = () => {
     if (typeof window !== 'undefined' && navigator.geolocation) {
@@ -68,9 +75,45 @@ export default function RegisterPage() {
     }
   };
 
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+
+    if (!fullName.trim()) {
+      errors.fullName = 'Full legal name is required.';
+    }
+
+    if (!email.trim()) {
+      errors.email = 'Email address is required.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      errors.email = 'Please enter a valid email address.';
+    }
+
+    if (!password) {
+      errors.password = 'Password is required.';
+    } else if (password.length < 6) {
+      errors.password = 'Password must be at least 6 characters.';
+    }
+
+    if (!phone.trim()) {
+      errors.phone = 'Contact phone number is required.';
+    }
+
+    if (lastDonationDate && lastDonationDate > todayStr) {
+      errors.lastDonationDate = 'Last donation date cannot be in the future.';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!validateForm()) {
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -80,6 +123,7 @@ export default function RegisterPage() {
         password,
         phone: phone.trim(),
         bloodGroup,
+        city: city.trim() || 'New York',
         address: address.trim() || 'New York, NY',
         latitude: Number(latitude) || 40.7128,
         longitude: Number(longitude) || -74.006,
@@ -170,11 +214,21 @@ export default function RegisterPage() {
                     type="text"
                     required
                     value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
+                    onChange={(e) => {
+                      setFullName(e.target.value);
+                      if (fieldErrors.fullName) setFieldErrors((prev) => ({ ...prev, fullName: '' }));
+                    }}
                     placeholder="e.g. Dr. Alex Vance"
-                    className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className={`w-full pl-9 pr-3 py-2 text-xs border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
+                      fieldErrors.fullName ? 'border-red-400 bg-red-50/20' : 'border-slate-200'
+                    }`}
                   />
                 </div>
+                {fieldErrors.fullName && (
+                  <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" /> {fieldErrors.fullName}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -187,11 +241,21 @@ export default function RegisterPage() {
                     type="tel"
                     required
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                      if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: '' }));
+                    }}
                     placeholder="+1 (555) 019-2834"
-                    className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className={`w-full pl-9 pr-3 py-2 text-xs border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
+                      fieldErrors.phone ? 'border-red-400 bg-red-50/20' : 'border-slate-200'
+                    }`}
                   />
                 </div>
+                {fieldErrors.phone && (
+                  <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" /> {fieldErrors.phone}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -206,11 +270,21 @@ export default function RegisterPage() {
                     type="email"
                     required
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: '' }));
+                    }}
                     placeholder="user@example.com"
-                    className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className={`w-full pl-9 pr-3 py-2 text-xs border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
+                      fieldErrors.email ? 'border-red-400 bg-red-50/20' : 'border-slate-200'
+                    }`}
                   />
                 </div>
+                {fieldErrors.email && (
+                  <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" /> {fieldErrors.email}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -220,15 +294,32 @@ export default function RegisterPage() {
                     <Lock className="w-4 h-4" />
                   </div>
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     required
                     minLength={6}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: '' }));
+                    }}
                     placeholder="•••••••• (min 6 chars)"
-                    className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className={`w-full pl-9 pr-9 py-2 text-xs border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
+                      fieldErrors.password ? 'border-red-400 bg-red-50/20' : 'border-slate-200'
+                    }`}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
+                {fieldErrors.password && (
+                  <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" /> {fieldErrors.password}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -269,19 +360,31 @@ export default function RegisterPage() {
                   </div>
                   <input
                     type="date"
+                    max={todayStr}
                     value={lastDonationDate}
-                    onChange={(e) => setLastDonationDate(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                    onChange={(e) => {
+                      setLastDonationDate(e.target.value);
+                      if (fieldErrors.lastDonationDate) setFieldErrors((prev) => ({ ...prev, lastDonationDate: '' }));
+                    }}
+                    className={`w-full pl-9 pr-3 py-2 text-xs border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white ${
+                      fieldErrors.lastDonationDate ? 'border-red-400 bg-red-50/20' : 'border-slate-200'
+                    }`}
                   />
                 </div>
-                <p className="text-[10px] text-slate-400 mt-0.5">Used to track the clinical 90-day donation cooldown.</p>
+                {fieldErrors.lastDonationDate ? (
+                  <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" /> {fieldErrors.lastDonationDate}
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-slate-400 mt-0.5">Used to track the clinical 90-day donation cooldown.</p>
+                )}
               </div>
             </div>
 
-            {/* Address & Coordinates */}
+            {/* City, Address & Coordinates */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="block text-xs font-semibold text-slate-700">City / Address & Coordinates *</label>
+                <label className="block text-xs font-semibold text-slate-700">City, Address & Location *</label>
                 <button
                   type="button"
                   onClick={handleAutoDetectLocation}
@@ -293,18 +396,34 @@ export default function RegisterPage() {
                 </button>
               </div>
 
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <MapPin className="w-4 h-4" />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <span className="text-[10px] text-slate-500 font-semibold block mb-1">City</span>
+                  <input
+                    type="text"
+                    required
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="e.g. New York"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
                 </div>
-                <input
-                  type="text"
-                  required
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder="e.g. 450 Lexington Ave, New York, NY 10017"
-                  className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
+                <div className="sm:col-span-2">
+                  <span className="text-[10px] text-slate-500 font-semibold block mb-1">Street Address</span>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <MapPin className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="e.g. 450 Lexington Ave, New York, NY 10017"
+                      className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-slate-600">
@@ -368,9 +487,14 @@ export default function RegisterPage() {
 
             <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex items-start gap-2.5">
               <ShieldCheck className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
-              <p className="text-[11px] text-emerald-900 leading-relaxed">
-                Provide your pharmacy or organization details to enable immediate access to <strong>AI OCR scanning</strong>, surplus medicine catalog uploads, and pharmacist safety sign-off.
-              </p>
+              <div className="text-[11px] text-emerald-900 leading-relaxed space-y-1">
+                <p>
+                  Provide your pharmacy or organization details to enable immediate access to <strong>AI OCR scanning</strong> and medicine catalog uploads.
+                </p>
+                <p className="text-[10px] text-emerald-700">
+                  <em>Note: Newly registered pharmacy profiles are set to <strong>PENDING</strong> verification by administrative/DGDA reviewers before official clinical approval sign-offs can be granted.</em>
+                </p>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -138,9 +138,38 @@ export default function UserDashboard() {
   const displayBloodGroup = user?.bloodGroup?.replace('_', '') || user?.donor?.bloodGroup?.replace('_', '') || 'O+';
   const orgName = user?.organizationName || user?.pharmacy?.organizationName || `${displayName}'s Healthcare Organization`;
   const licNumber = user?.licenseNumber || user?.pharmacy?.licenseNumber || 'DGDA-LIC-VERIFIED';
+  const pharmacyStatus = user?.pharmacy?.verificationStatus || (user?.isVerified ? 'VERIFIED' : 'PENDING');
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      {/* Missing Profile Prompts */}
+      {(!user?.bloodGroup || !user?.organizationName || !user?.licenseNumber) && (
+        <div className="space-y-2">
+          {!user?.bloodGroup && (
+            <div className="p-3.5 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-2xl flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Complete your blood profile to participate in donor matching and emergency blood alerts.</span>
+              </div>
+              <Link href="/profile" className="font-bold underline text-amber-900 hover:text-amber-950 shrink-0 ml-2">
+                Update Blood Profile
+              </Link>
+            </div>
+          )}
+          {(!user?.organizationName || !user?.licenseNumber) && (
+            <div className="p-3.5 bg-blue-50 border border-blue-200 text-blue-900 text-xs rounded-2xl flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>Add your pharmacy or organization credentials to enable medicine redistribution and AI OCR.</span>
+              </div>
+              <Link href="/profile" className="font-bold underline text-blue-900 hover:text-blue-950 shrink-0 ml-2">
+                Add Credentials
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Unified Welcome & Profile Banner */}
       <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/90 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-100 pb-6">
@@ -235,13 +264,30 @@ export default function UserDashboard() {
               <p className="text-sm font-bold text-emerald-950 truncate">
                 {orgName}
               </p>
-              <span className="text-[10px] font-mono text-emerald-700 font-semibold block">
-                Lic: {licNumber}
-              </span>
+              <div className="flex items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] font-mono text-emerald-700 font-semibold block">
+                  Lic: {licNumber}
+                </span>
+                <span
+                  className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider ${
+                    pharmacyStatus === 'VERIFIED'
+                      ? 'bg-emerald-200 text-emerald-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {pharmacyStatus === 'VERIFIED' ? 'Verified' : 'Pending Review'}
+                </span>
+              </div>
             </div>
-            <span className="shrink-0 p-2 rounded-xl bg-emerald-100 text-emerald-700" title="Verified Institution">
-              <CheckCircle2 className="w-5 h-5" />
-            </span>
+            {pharmacyStatus === 'VERIFIED' ? (
+              <span className="shrink-0 p-2 rounded-xl bg-emerald-100 text-emerald-700" title="Verified Pharmacist / Institution">
+                <CheckCircle2 className="w-5 h-5" />
+              </span>
+            ) : (
+              <span className="shrink-0 p-2 rounded-xl bg-amber-100 text-amber-700" title="Verification Pending Regulatory Audit">
+                <Clock className="w-5 h-5" />
+              </span>
+            )}
           </div>
 
           {/* Platform Capability Badge */}

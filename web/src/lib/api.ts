@@ -26,6 +26,7 @@ export const authApi = {
   login: (data: any) => apiClient.post('/auth/login', data),
   logout: () => apiClient.post('/auth/logout'),
   me: () => apiClient.get('/auth/me'),
+  updateProfile: (data: any) => apiClient.put('/auth/profile', data),
 };
 
 export const donorApi = {
@@ -33,7 +34,7 @@ export const donorApi = {
   getProfile: () => apiClient.get('/donors/profile'),
   updateAvailability: (data: { isAvailable: boolean; preferredRadiusKm?: number }) =>
     apiClient.patch('/donors/availability', data),
-  getNearby: (params?: { lat?: number; lng?: number; radius?: number; bloodGroup?: string }) =>
+  getNearby: (params?: { lat?: number; lng?: number; radius?: number; bloodGroup?: string; city?: string }) =>
     apiClient.get('/donors/nearby', { params }),
   getStats: () => apiClient.get('/donors/stats'),
   getMyRequests: () => apiClient.get('/donors/my-requests'),

@@ -780,9 +780,20 @@ const server = http.createServer(async (req, res) => {
     const lng = parseFloat(url.searchParams.get('lng') || '-73.9754');
     const radius = parseFloat(url.searchParams.get('radius') || '5.0');
     const bloodGroup = url.searchParams.get('bloodGroup');
+    const city = url.searchParams.get('city');
 
     const results = db.donors
-      .filter((d) => d.isAvailable && (!bloodGroup || d.bloodGroup === bloodGroup))
+      .filter((d) => {
+        if (!d.isAvailable) return false;
+        if (bloodGroup && d.bloodGroup !== bloodGroup) return false;
+        if (city) {
+          const c = city.toLowerCase();
+          const matchCity = (d as any).city && (d as any).city.toLowerCase().includes(c);
+          const matchAddr = d.address && d.address.toLowerCase().includes(c);
+          if (!matchCity && !matchAddr) return false;
+        }
+        return true;
+      })
       .map((d) => {
         const dist = calculateDistanceKm(lat, lng, d.latitude, d.longitude);
         const elig = checkDonationEligibility(d.lastDonationDate ? new Date(d.lastDonationDate) : null);

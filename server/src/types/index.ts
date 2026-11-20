@@ -33,6 +33,7 @@ export interface AuthenticatedUser {
   fullName?: string | null;
   phone?: string | null;
   bloodGroup?: BloodGroup | null;
+  city?: string | null;
   address?: string | null;
   latitude?: number | null;
   longitude?: number | null;

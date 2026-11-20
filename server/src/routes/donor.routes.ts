@@ -200,16 +200,25 @@ router.get('/nearby', async (req, res, next) => {
     const lng = parseFloat(req.query.lng as string) || -74.006;
     const radiusKm = parseFloat(req.query.radius as string) || 5.0;
     const bloodGroup = req.query.bloodGroup as BloodGroup | undefined;
+    const city = req.query.city as string | undefined;
 
     const allDonors = await prisma.donor.findMany({
       where: {
         isAvailable: true,
         ...(bloodGroup ? { bloodGroup } : {}),
+        ...(city ? {
+          OR: [
+            { city: { contains: city, mode: 'insensitive' } },
+            { address: { contains: city, mode: 'insensitive' } },
+          ],
+        } : {}),
       },
       select: {
         id: true,
         fullName: true,
         bloodGroup: true,
+        city: true,
+        address: true,
         latitude: true,
         longitude: true,
         isAvailable: true,
